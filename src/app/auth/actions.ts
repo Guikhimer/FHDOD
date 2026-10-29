@@ -1,72 +1,42 @@
 "use server";
 import { z } from "zod";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { hasSupabase } from "@/lib/env";
 import type { FormState } from "@/components/ActionForm";
+
+const api = () => process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+async function post(path: string, body: unknown, token?: string) {
+  const response = await fetch(`${api()}/api/v1${path}`, { method: path === "/auth/password" ? "PATCH" : "POST", cache: "no-store", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+  return response;
+}
 export async function login(_state: FormState, form: FormData): Promise<FormState> {
-  if (!hasSupabase()) return { error: "Configure o Supabase para entrar com uma conta real." };
-  const parsed = z
-    .object({ email: z.email(), password: z.string().min(1) })
-    .safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: "Informe seu e-mail e sua senha." };
-  const client = await createClient();
-  const { error } = await client.auth.signInWithPassword(parsed.data);
-  if (error) return { error: "Não foi possível entrar. Confira o e-mail e a senha." };
-  redirect("/dashboard");
+  const parsed = z.object({ email: z.email(), password: z.string().min(1) }).safeParse(Object.fromEntries(form));
+  if (!parsed.success || !api()) return { error: "Informe e-mail e senha e confira a configuração da API." };
+  try {
+    const response = await post("/auth/login", parsed.data);
+    if (!response.ok) return { error: "Não foi possível entrar. Confira o e-mail e a senha." };
+    const tokens = await response.json();
+    const jar = await cookies();
+    const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/" };
+    jar.set("fhdod_access", tokens.accessToken, { ...options, maxAge: tokens.expiresIn });
+    jar.set("fhdod_refresh", tokens.refreshToken, { ...options, maxAge: 30 * 24 * 3600 });
+    redirect(tokens.mustChangePassword ? "/auth/first-access" : "/dashboard");
+  } catch (error) { if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error; return { error: "API indisponível. Tente novamente." }; }
 }
-export async function magicLink(_state: FormState, form: FormData): Promise<FormState> {
-  if (!hasSupabase()) return { error: "Configure o Supabase para enviar links de acesso." };
-  const parsed = z.email().safeParse(form.get("email"));
-  if (!parsed.success) return { error: "Informe um e-mail válido." };
-  const client = await createClient();
-  const { error } = await client.auth.signInWithOtp({
-    email: parsed.data,
-    options: {
-      shouldCreateUser: false,
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-    },
-  });
-  if (error)
-    return { error: "Não foi possível solicitar o link agora. Tente novamente mais tarde." };
-  return {
-    success: "Se o e-mail estiver cadastrado, você receberá um link de acesso de uso único.",
-  };
-}
+export async function magicLink(): Promise<FormState> { return { error: "A API atual não oferece acesso por link. Use e-mail e senha." }; }
 export async function setPassword(_state: FormState, form: FormData): Promise<FormState> {
-  if (!hasSupabase()) return { error: "Configure o Supabase para alterar a senha." };
-  const parsed = z
-    .object({ password: z.string().min(12), confirmation: z.string() })
-    .refine((p) => p.password === p.confirmation)
-    .safeParse(Object.fromEntries(form));
-  if (!parsed.success)
-    return { error: "Use uma senha com pelo menos 12 caracteres e repita a mesma senha." };
-  const client = await createClient();
-  const {
-    data: { user },
-  } = await client.auth.getUser();
-  if (!user) return { error: "Seu link expirou. Solicite um novo acesso." };
-  const { error } = await client.auth.updateUser({ password: parsed.data.password });
-  if (error)
-    return {
-      error: "Não foi possível definir a senha. Solicite um novo link de acesso e tente novamente.",
-    };
-  const admin = createAdminClient();
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update({ must_change_password: false })
-    .eq("id", user.id);
-  if (profileError)
-    return {
-      error: "A senha foi alterada, mas não foi possível concluir o acesso. Tente novamente.",
-    };
-  redirect("/dashboard");
+  const parsed = z.object({ currentPassword: z.string().min(1), password: z.string().min(12), confirmation: z.string() }).refine((v) => v.password === v.confirmation).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: "Informe a senha temporária e uma nova senha de pelo menos 12 caracteres." };
+  const jar = await cookies(); const token = jar.get("fhdod_access")?.value;
+  if (!token) redirect("/login");
+  try {
+    const response = await post("/auth/password", { currentPassword: parsed.data.currentPassword, newPassword: parsed.data.password }, token);
+    if (!response.ok) return { error: "Não foi possível alterar a senha. Confira a senha atual." };
+  } catch { return { error: "API indisponível. Tente novamente." }; }
+  jar.delete("fhdod_access"); jar.delete("fhdod_refresh"); redirect("/login");
 }
 export async function signOut() {
-  if (hasSupabase()) {
-    const client = await createClient();
-    await client.auth.signOut();
-  }
-  redirect("/login");
+  const jar = await cookies(); const refreshToken = jar.get("fhdod_refresh")?.value;
+  if (refreshToken && api()) await post("/auth/logout", { refreshToken }).catch(() => undefined);
+  jar.delete("fhdod_access"); jar.delete("fhdod_refresh"); redirect("/login");
 }
