@@ -1,5 +1,4 @@
-export type Role = "admin" | "sector_manager";
-export type Shift = "morning" | "afternoon" | "night";
+export type Role = "admin" | "ombudsman" | "sector_manager";
 export type Profile = {
   id: string;
   full_name: string;
@@ -42,4 +41,4 @@ export type Metrics = {
     average: number | null;
   }[];
 };
-export type DashboardFilters = { sector?: string; from?: string; to?: string; shift?: Shift };
+export type DashboardFilters = { sector?: string; from?: string; to?: string };

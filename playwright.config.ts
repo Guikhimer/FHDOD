@@ -10,8 +10,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {
-      NEXT_PUBLIC_SUPABASE_URL: "",
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
+      NEXT_PUBLIC_API_URL: "",
       NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
     },
   },

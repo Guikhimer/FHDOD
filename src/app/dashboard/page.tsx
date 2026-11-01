@@ -6,13 +6,13 @@ import { DashboardCharts } from "@/components/DashboardCharts";
 import { getMetrics, getSectors } from "@/lib/dashboard";
 import { requireProfile } from "@/lib/auth";
 import { parseFilters } from "@/lib/filters";
-import { number, shifts } from "@/lib/utils";
+import { number } from "@/lib/utils";
 export default async function Dashboard({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireProfile();
+  const profile = await requireProfile();
   const input = await searchParams;
   const result = (() => {
     try {
@@ -34,11 +34,11 @@ export default async function Dashboard({
           <h1>Escutar. Entender. Melhorar.</h1>
           <p>Acompanhe o que nossos pacientes têm a dizer.</p>
         </div>
-        <Button variant="outline" asChild>
+        {profile.role !== "sector_manager" && <Button variant="outline" asChild>
           <a href={`/api/reports?${query}`}>
             <Download size={20} aria-hidden="true" /> Exportar Excel
           </a>
-        </Button>
+        </Button>}
       </div>
       <form className="filter-panel" action="/dashboard">
         <span className="filter-title">
@@ -63,17 +63,6 @@ export default async function Dashboard({
           <label htmlFor="to">Até</label>
           <input id="to" type="date" name="to" defaultValue={filters.to} />
         </div>
-        <div>
-          <label htmlFor="shift">Plantão</label>
-          <select id="shift" name="shift" defaultValue={filters.shift || ""}>
-            <option value="">Todos</option>
-            {Object.entries(shifts).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
         <Button type="submit">Aplicar</Button>
         <Button variant="ghost" asChild>
           <Link href="/dashboard">Limpar</Link>
@@ -97,11 +86,11 @@ export default async function Dashboard({
             <h2>Um olhar para cada setor</h2>
             <p>Indicadores do período selecionado</p>
           </div>
-          <Button variant="ghost" asChild>
+          {profile.role !== "sector_manager" && <Button variant="ghost" asChild>
             <Link href="/dashboard/manage">
               Gerenciar pesquisas <ArrowUpRight size={20} aria-hidden="true" />
             </Link>
-          </Button>
+          </Button>}
         </div>
         <div className="table-scroll">
           <table>

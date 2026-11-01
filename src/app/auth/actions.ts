@@ -3,6 +3,7 @@ import { z } from "zod";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { FormState } from "@/components/ActionForm";
+import { tokenPairSchema } from "@/lib/api-schemas";
 
 const api = () => process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
 async function post(path: string, body: unknown, token?: string) {
@@ -12,18 +13,19 @@ async function post(path: string, body: unknown, token?: string) {
 export async function login(_state: FormState, form: FormData): Promise<FormState> {
   const parsed = z.object({ email: z.email(), password: z.string().min(1) }).safeParse(Object.fromEntries(form));
   if (!parsed.success || !api()) return { error: "Informe e-mail e senha e confira a configuração da API." };
+  let destination = "/dashboard";
   try {
     const response = await post("/auth/login", parsed.data);
     if (!response.ok) return { error: "Não foi possível entrar. Confira o e-mail e a senha." };
-    const tokens = await response.json();
+    const tokens = tokenPairSchema.parse(await response.json());
     const jar = await cookies();
     const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/" };
     jar.set("fhdod_access", tokens.accessToken, { ...options, maxAge: tokens.expiresIn });
     jar.set("fhdod_refresh", tokens.refreshToken, { ...options, maxAge: 30 * 24 * 3600 });
-    redirect(tokens.mustChangePassword ? "/auth/first-access" : "/dashboard");
-  } catch (error) { if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error; return { error: "API indisponível. Tente novamente." }; }
+    destination = tokens.mustChangePassword ? "/auth/first-access" : "/dashboard";
+  } catch { return { error: "API indisponível. Tente novamente." }; }
+  redirect(destination);
 }
-export async function magicLink(): Promise<FormState> { return { error: "A API atual não oferece acesso por link. Use e-mail e senha." }; }
 export async function setPassword(_state: FormState, form: FormData): Promise<FormState> {
   const parsed = z.object({ currentPassword: z.string().min(1), password: z.string().min(12), confirmation: z.string() }).refine((v) => v.password === v.confirmation).safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: "Informe a senha temporária e uma nova senha de pelo menos 12 caracteres." };

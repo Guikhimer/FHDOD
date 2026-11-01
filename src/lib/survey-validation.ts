@@ -2,9 +2,10 @@ import { z } from "zod";
 export const submissionSchema = z
   .object({
     submissionId: z.uuid(),
+    attendedAt: z.string().datetime(),
     nps: z.number().int().min(0).max(10),
     answers: z
-      .array(z.object({ question_id: z.uuid(), value: z.number().int().min(1).max(5) }))
+      .array(z.object({ question_id: z.uuid(), value: z.number().int().min(1).max(5), question_text: z.string().max(300) }))
       .max(100),
     comment: z.string().trim().max(2000).default(""),
     contact: z
