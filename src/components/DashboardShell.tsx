@@ -25,8 +25,8 @@ export function DashboardShell({
   const path = usePathname();
   const links = [
     { href: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
-    { href: "/dashboard/manage", label: "Pesquisas e gestão", icon: ClipboardList },
-    { href: "/dashboard/tv-wall", label: "Painel TV", icon: Monitor },
+    ...(profile.role === "sector_manager" ? [] : [{ href: "/dashboard/manage", label: "Pesquisas e gestão", icon: ClipboardList }]),
+    { href: "/tv-wall", label: "Painel TV", icon: Monitor },
   ];
   if (path === "/dashboard/tv-wall") return <>{children}</>;
   return (
@@ -57,7 +57,7 @@ export function DashboardShell({
             </span>
             <div>
               <strong>{profile.full_name || "Equipe FHDOD"}</strong>
-              <small>{profile.role === "admin" ? "Administrador" : "Gestor de setor"}</small>
+              <small>{profile.role === "admin" ? "Admin" : profile.role === "ombudsman" ? "Ouvidoria" : "Gestor de setor"}</small>
             </div>
           </div>
           {!demo && (
@@ -81,7 +81,7 @@ export function DashboardShell({
         </header>
         {demo && (
           <div className="dashboard-demo">
-            Dados fictícios para demonstração. Configure o Supabase para receber avaliações reais.
+            Dados fictícios para demonstração. Configure a API para receber avaliações reais.
           </div>
         )}
         <main id="main" className="dashboard-main">

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { getSectors } from "@/lib/dashboard";
-import { hasSupabase } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import { apiRequest } from "@/lib/api";
+import { redirect } from "next/navigation";
 import { demoSurvey } from "@/lib/demo";
 import { ActionForm } from "@/components/ActionForm";
 import {
@@ -15,7 +15,9 @@ import {
   saveSettings,
   updateComplaint,
 } from "./actions";
-import type { Question, Profile } from "@/types";
+import type { Question } from "@/types";
+import { complaintSchema, managedUserSchema, notificationSettingsSchema, questionSchema } from "@/lib/api-schemas";
+import { z } from "zod";
 type Complaint = {
   id: string;
   comment: string | null;
@@ -23,48 +25,23 @@ type Complaint = {
   status: string;
   created_at: string;
 };
+type ManagedUser = { id: string; email: string; full_name: string; role: "admin" | "ombudsman" | "sector_manager"; active: boolean; mustChangePassword: boolean; created_at: string };
 export default async function Manage() {
   const profile = await requireProfile();
+  if (profile.role === "sector_manager") redirect("/dashboard");
   const sectors = await getSectors();
-  const demo = !hasSupabase();
+  const demo = !process.env.NEXT_PUBLIC_API_URL;
   let questions: Question[] = demoSurvey("pronto-atendimento")!.questions;
-  let profiles: Profile[] = [];
   let complaints: Complaint[] = [];
+  let users: ManagedUser[] = [];
   let emails = "";
   let enabled = false;
   if (!demo) {
-    const client = await createClient();
-    const { data, error } = await client
-      .from("questions")
-      .select("id,text,kind,sector_id,position")
-      .eq("active", true)
-      .order("position");
-    if (error) throw new Error("Não foi possível carregar as perguntas.");
-    questions = data as Question[];
-    if (profile.role === "admin") {
-      const [people, settings, feedback] = await Promise.all([
-        client
-          .from("profiles")
-          .select("id,full_name,role,active,must_change_password")
-          .order("full_name"),
-        client
-          .from("app_settings")
-          .select("notification_emails,notifications_enabled")
-          .eq("id", true)
-          .single(),
-        client
-          .from("complaints")
-          .select("id,comment,contact,status,created_at")
-          .order("created_at", { ascending: false })
-          .limit(50),
-      ]);
-      if (people.error || settings.error || feedback.error)
-        throw new Error("Não foi possível carregar a gestão.");
-      profiles = people.data as Profile[];
-      complaints = feedback.data as Complaint[];
-      emails = settings.data?.notification_emails.join(", ") || "";
-      enabled = settings.data?.notifications_enabled || false;
-    }
+    questions = await apiRequest<Question[]>("/questions", {}, questionSchema.array());
+    const settings = await apiRequest<{ notification_emails: string[]; notifications_enabled: boolean }>("/settings/notifications", {}, notificationSettingsSchema);
+    emails = settings.notification_emails.join(", "); enabled = settings.notifications_enabled;
+    const feedback = await apiRequest<{ items: Complaint[] }>("/complaints?limit=50&offset=0", {}, z.object({ items: complaintSchema.array(), limit: z.number(), offset: z.number() })); complaints = feedback.items;
+    if (profile.role === "admin") users = await apiRequest<ManagedUser[]>("/users", {}, managedUserSchema.array());
   }
   const sectorOptions = sectors.map((s) => (
     <option key={s.id} value={s.id}>
@@ -77,11 +54,7 @@ export default async function Manage() {
         <div>
           <p className="eyebrow">PESQUISAS E GESTÃO</p>
           <h1>Organize a escuta.</h1>
-          <p>
-            {profile.role === "admin"
-              ? "Setores, perguntas e pessoas que cuidam da experiência."
-              : "Perguntas e pesquisas dos setores sob sua responsabilidade."}
-          </p>
+          <p>{profile.role === "admin" ? "Administração completa do sistema." : "Gestão de pesquisas e acompanhamento da Ouvidoria."}</p>
         </div>
       </div>
       <section className="table-card">
@@ -106,7 +79,6 @@ export default async function Manage() {
         </div>
       </section>
       <div className="manage-grid">
-        {profile.role === "admin" && (
           <section className="management-card">
             <h2>Criar setor</h2>
             <ActionForm action={createSector} label="Criar setor" disabled={demo}>
@@ -125,7 +97,6 @@ export default async function Manage() {
               </p>
             </ActionForm>
           </section>
-        )}
         <section className="management-card">
           <h2>Publicar pesquisa</h2>
           <ActionForm action={createSurvey} label="Publicar pesquisa" disabled={demo}>
@@ -158,7 +129,7 @@ export default async function Manage() {
           <ActionForm action={createQuestion} label="Adicionar pergunta" disabled={demo}>
             <label htmlFor="question-sector">Onde exibir?</label>
             <select id="question-sector" name="sector_id">
-              {profile.role === "admin" && <option value="">Geral · todos os setores</option>}
+              <option value="">Geral · todos os setores</option>
               {sectorOptions}
             </select>
             <label htmlFor="question-text">Texto da pergunta</label>
@@ -205,21 +176,23 @@ export default async function Manage() {
           ))}
         </div>
       </section>
-      {profile.role === "admin" && (
         <>
           <div className="manage-grid">
-            <section className="management-card">
-              <h2>Convidar pessoa da equipe</h2>
-              <ActionForm action={inviteUser} label="Enviar convite" disabled={demo}>
+            {profile.role === "admin" && <section className="management-card">
+              <h2>Criar acesso</h2>
+              <ActionForm action={inviteUser} label="Criar conta" disabled={demo}>
                 <label htmlFor="invite-name">Nome</label>
                 <input id="invite-name" name="full_name" maxLength={150} required />
                 <label htmlFor="invite-email">E-mail</label>
                 <input id="invite-email" name="email" type="email" required />
                 <label htmlFor="invite-role">Perfil de acesso</label>
-                <select id="invite-role" name="role">
+                <select id="invite-role" name="role" defaultValue="sector_manager">
                   <option value="sector_manager">Gestor de setor</option>
-                  <option value="admin">Administrador</option>
+                  <option value="ombudsman">Ouvidoria</option>
+                  <option value="admin">Admin</option>
                 </select>
+                <label htmlFor="invite-password">Senha temporária</label>
+                <input id="invite-password" name="temporary_password" type="password" minLength={12} maxLength={200} autoComplete="new-password" required />
                 <div className="checkbox-group">
                   <p>Setores do gestor</p>
                   {sectors.map((s) => (
@@ -229,8 +202,9 @@ export default async function Manage() {
                     </label>
                   ))}
                 </div>
+                <p className="field-help">A conta exigirá a troca da senha no primeiro acesso. Compartilhe a senha temporária por canal seguro.</p>
               </ActionForm>
-            </section>
+            </section>}
             <section className="management-card">
               <h2>Avisos para a administração</h2>
               <ActionForm action={saveSettings} label="Salvar preferências" disabled={demo}>
@@ -246,52 +220,17 @@ export default async function Manage() {
                   <input type="checkbox" name="enabled" defaultChecked={enabled} />
                   <span>Receber avisos por e-mail</span>
                 </label>
-                <p className="field-help">
-                  O aviso contém um link para o painel. Comentários e telefones permanecem na área
-                  protegida.
-                </p>
+                <p className="field-help">As preferências são armazenadas pela API. A entrega só estará ativa quando o worker de e-mail do backend for configurado.</p>
               </ActionForm>
             </section>
           </div>
-          <section className="table-card">
-            <div className="section-heading">
-              <h2>Pessoas da equipe</h2>
-            </div>
-            {profiles.length ? (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>Perfil</th>
-                      <th>Acesso</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {profiles.map((p) => (
-                      <tr key={p.id}>
-                        <th scope="row">{p.full_name || "Sem nome"}</th>
-                        <td>{p.role === "admin" ? "Administrador" : "Gestor de setor"}</td>
-                        <td>
-                          {p.active
-                            ? p.must_change_password
-                              ? "Aguardando primeiro acesso"
-                              : "Ativo"
-                            : "Inativo"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="empty-state">
-                {demo
-                  ? "Os usuários reais aparecerão após conectar o Supabase."
-                  : "Nenhum usuário cadastrado."}
-              </p>
-            )}
-          </section>
+          {profile.role === "admin" && <section className="table-card">
+            <div className="section-heading"><h2>Pessoas da equipe</h2></div>
+            {users.length ? <div className="question-list">{users.map((user) => <article key={user.id}>
+              <div><strong>{user.full_name}</strong><p>{user.email}</p></div>
+              <span className="small-tag">{user.role === "sector_manager" ? "Gestor" : user.role === "ombudsman" ? "Ouvidoria" : "Admin"}{user.mustChangePassword ? " · troca de senha pendente" : ""}{!user.active ? " · inativo" : ""}</span>
+            </article>)}</div> : <p className="empty-state">Nenhuma conta cadastrada.</p>}
+          </section>}
           <section className="table-card">
             <div className="section-heading">
               <div>
@@ -327,7 +266,6 @@ export default async function Manage() {
             )}
           </section>
         </>
-      )}
     </>
   );
 }

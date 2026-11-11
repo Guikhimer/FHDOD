@@ -1,61 +1,50 @@
 # FHDOD · Pesquisa de satisfação
 
-Estrutura inicial Next.js App Router, TypeScript, Tailwind CSS, componentes no padrão Shadcn/UI e Supabase. Consulte primeiro o [esquema SQL](supabase/migrations/202610020001_initial_schema.sql), depois a [arquitetura e árvore do projeto](docs/ARCHITECTURE.md) e o [formulário do paciente](src/components/SurveyForm.tsx).
+Frontend Next.js para pesquisas de satisfação hospitalar. A aplicação usa a API REST independente FHDOD; o navegador não acessa PostgreSQL e não usa credenciais Supabase. A API é a única camada que se conecta ao PostgreSQL hospedado.
 
-## Executar
+## Executar localmente
 
-Node.js 22.12 ou superior:
+Requisitos: Node.js 22.12 ou superior e o backend FHDOD em execução.
 
 ```powershell
 npm ci
 Copy-Item .env.example .env.local
+```
+
+Configure `NEXT_PUBLIC_API_URL` para a origem HTTP da API (por exemplo, `http://localhost:3001`) e execute:
+
+```powershell
 npm run dev
 ```
 
-Abra `http://localhost:3000`. Sem variáveis Supabase, a aplicação funciona em demonstração: dados fictícios, nenhuma avaliação armazenada.
+Abra `http://localhost:3000`. Sem `NEXT_PUBLIC_API_URL`, as páginas usam dados demonstrativos e nenhuma avaliação é persistida. Consulte [API.md do backend](../backend-FHDOD/docs/API.md) e [SECURITY.md](../backend-FHDOD/docs/SECURITY.md) para contratos e configuração da API.
 
-| Rota                           | Uso                                         |
-| ------------------------------ | ------------------------------------------- |
-| /                              | Entrada e orientação ao paciente            |
-| /p/pronto-atendimento          | Pesquisa pública por setor                  |
-| /p/pronto-atendimento?tablet=1 | Pesquisa com reinício automático            |
-| /login                         | Acesso por senha ou link de uso único       |
-| /auth/first-access             | Definir senha antes do primeiro painel      |
-| /dashboard                     | Indicadores e filtros                       |
-| /dashboard/manage              | Pesquisas, equipe, notificações e ouvidoria |
-| /dashboard/tv-wall             | Indicadores ampliados com Realtime          |
+| Rota | Uso |
+| --- | --- |
+| `/` | Entrada e orientação ao paciente |
+| `/p/{slug}` | Pesquisa pública por setor |
+| `/p/{slug}?tablet=1` | Pesquisa com reinício automático |
+| `/login` | Acesso da equipe por e-mail e senha |
+| `/auth/first-access` | Troca obrigatória da senha temporária |
+| `/dashboard` | Indicadores e filtros por período/setor |
+| `/dashboard/manage` | Administração para Admin e Ouvidoria |
+| `/tv-wall` | Painel público somente com indicadores agregados |
 
-## Conectar Supabase
+## Sessão e dados
 
-1. Crie um projeto Supabase. Execute a migração SQL em um banco novo pelo SQL Editor ou `supabase db push`. O seed é opcional e deve ser executado uma vez.
-2. Copie URL e chave publicável para `.env.local`. Defina `SUPABASE_SERVICE_ROLE_KEY` exclusivamente no servidor e uma chave aleatória de pelo menos 32 bytes para `SURVEY_COOKIE_SECRET`.
-3. Defina `NEXT_PUBLIC_SITE_URL` com a origem real da aplicação, incluindo protocolo e sem barra final. Configure a mesma URL no Supabase Auth, com `/auth/callback` na lista de redirecionamentos permitidos. Desative cadastro público e configure SMTP para convites reais.
-4. Configure os templates de e-mail do Supabase Auth para callbacks SSR. Convite: `<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite">Aceitar convite</a>`. Magic link: use `type=magiclink`; recuperação de senha: `type=recovery`. O callback ignora destinos arbitrários e valida o token de uso único.
-5. Crie o primeiro usuário pelo painel Supabase Auth e promova-o pelo SQL Editor, usando o UUID real:
+O Next.js atua como BFF para chamadas autenticadas: access e refresh tokens ficam em cookies `HttpOnly`, `Secure` em produção e `SameSite=Lax`; as chamadas bearer são feitas no servidor. Configure CORS da API com as origens necessárias ao ambiente. Não coloque URL de banco, segredo JWT ou credenciais privadas em variáveis `NEXT_PUBLIC_*`.
 
-```sql
-update public.profiles
-set role = 'admin', active = true, must_change_password = true
-where id = 'UUID-DO-USUARIO-CRIADO';
-```
+A pesquisa pública usa `GET /api/v1/surveys/public/{slug}` e envia para o backend por um Route Handler do Next.js. A chave UUID de idempotência segue no cabeçalho `Idempotency-Key`. NPS de 0 a 10 é obrigatório; notas de 1 a 5 são opcionais. O horário informado pelo paciente descreve o atendimento e é separado do horário de envio. Contato só é enviado com consentimento. A API decide os registros de Ouvidoria e grava os dados.
 
-6. Entre com a senha temporária. A aplicação exige uma senha pessoal antes de liberar os resultados. Novos usuários podem ser convidados por `/dashboard/manage`.
-7. Gere os tipos do seu banco ao ampliar a aplicação: `supabase gen types typescript --project-id SEU_PROJECT_ID > src/types/database.ts`. Os contratos de domínio iniciais estão em `src/types/index.ts`.
+O painel público `/tv-wall` recebe somente agregados e não mostra relatos, telefones ou linhas de respostas. A equipe de Ouvidoria e Admin consultam dados individuais da Ouvidoria; gestores têm somente o dashboard dos setores autorizados e não podem exportar dados brutos.
 
 ## Notificações
 
-As notas 1 ou 2 criam registros de ouvidoria e uma fila atômica, mesmo quando comentário e contato estão vazios. Publique a função:
+A tela salva destinatários e a preferência de notificação na API. O backend documenta a fila, mas o worker de envio de e-mails ainda precisa ser configurado; não considere o envio operacional até publicar e validar esse serviço. Não inclua comentário ou telefone em notificações.
 
-```powershell
-supabase functions deploy notify-complaints
-supabase secrets set RESEND_API_KEY=SUA_CHAVE NOTIFICATION_FROM="FHDOD <ouvidoria@seu-dominio.org.br>" SITE_URL=https://seu-dominio.org.br
-```
+## Dados históricos Supabase
 
-Use domínio validado no Resend. Configure os destinatários e ative os avisos em `/dashboard/manage`. Habilite Cron e pg_net no Supabase, salve no Vault os segredos `fhdod_project_url` e `fhdod_service_role_key` e execute [o agendamento](supabase/operations/schedule-notifications.sql). A função exige o bearer de serviço, bloqueia lotes concorrentes e repete falhas após 5 minutos. A chave de idempotência do Resend evita duplicações nas novas tentativas próximas; monitore falhas persistentes no banco e no provedor. O e-mail não contém comentário nem telefone.
-
-## Vercel
-
-Importe o repositório como projeto Next.js. Defina as cinco variáveis de produção indicadas em `.env.example` no ambiente Vercel, revise as URLs no Auth e publique a branch aprovada. Esta implementação não publica automaticamente nem cria serviços externos.
+O diretório `supabase/` e os testes de banco relacionados são mantidos como histórico da primeira implementação. Eles não são usados pelo frontend em runtime e não devem ser executados para configurar esta arquitetura. Não apague migrations/histórico sem um plano separado de arquivamento.
 
 ## Verificação
 
@@ -68,8 +57,4 @@ npm exec playwright install chromium
 npm run test:e2e
 ```
 
-Os testes de banco executam o SQL real em PostgreSQL via PGlite com um substituto mínimo do schema Auth; verificam RLS, validação, atomicidade, idempotência e métricas. Realtime, SMTP, Supabase Auth e a Edge Function requerem validação adicional em um projeto Supabase configurado. Os testes de navegador verificam o fluxo opcional, NPS zero, ouvidoria, reinício do tablet, zoom, teclado e axe.
-
-[Gitflow e inicialização das branches](docs/GITFLOW.md) · [Arquitetura, decisões e escopo](docs/ARCHITECTURE.md)
-
-Referências oficiais: [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client), [Next.js Proxy](https://nextjs.org/docs/app/getting-started/proxy), [templates de e-mail](https://supabase.com/docs/guides/auth/auth-email-templates), [agendamento de Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions).
+Consulte [Arquitetura](docs/ARCHITECTURE.md), [lacunas de migração](docs/API_MIGRATION_GAPS.md), [validação](docs/VALIDATION.md) e [Gitflow](docs/GITFLOW.md). O frontend não provisiona Aiven nem implanta serviços externos.

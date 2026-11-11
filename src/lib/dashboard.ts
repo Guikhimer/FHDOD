@@ -1,19 +1,16 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
-import { demoMetrics, demoSectors } from "@/lib/demo";
-import { hasSupabase } from "@/lib/env";
+import { apiRequest, publicApi } from "@/lib/api";
+import { metricsSchema, sectorSchema } from "@/lib/api-schemas";
 import { filterDates } from "@/lib/filters";
+import { demoMetrics, demoSectors } from "@/lib/demo";
 import type { DashboardFilters, Metrics, Sector } from "@/types";
 export async function getSectors(): Promise<Sector[]> {
-  if (!hasSupabase()) return demoSectors;
-  const client = await createClient();
-  const { data, error } = await client.from("sectors").select("id,name,slug,active").order("name");
-  if (error) throw new Error("Não foi possível carregar os setores.");
-  return data as Sector[];
+  if (!process.env.NEXT_PUBLIC_API_URL) return demoSectors;
+  return apiRequest<Sector[]>("/sectors", {}, sectorSchema.array());
 }
 export async function getMetrics(filters: DashboardFilters = {}): Promise<Metrics> {
-  if (!hasSupabase()) {
-    if (filters.sector || filters.from || filters.to || filters.shift)
+  if (!process.env.NEXT_PUBLIC_API_URL) {
+    if (filters.sector || filters.from || filters.to)
       return {
         total: 0,
         nps: null,
@@ -30,14 +27,14 @@ export async function getMetrics(filters: DashboardFilters = {}): Promise<Metric
       };
     return demoMetrics;
   }
-  const { from, to } = filterDates(filters);
-  const client = await createClient();
-  const { data, error } = await client.rpc("dashboard_metrics", {
-    p_sector: filters.sector || null,
-    p_from: from,
-    p_to: to,
-    p_shift: filters.shift || null,
-  });
-  if (error) throw new Error("Não foi possível carregar os indicadores.");
-  return data as Metrics;
+  const query = new URLSearchParams();
+  if (filters.sector) query.set("sectorId", filters.sector);
+  const dates = filterDates(filters);
+  if (dates.from) query.set("from", dates.from);
+  if (dates.to) query.set("to", dates.to);
+  return apiRequest<Metrics>(`/dashboard/metrics?${query}`, {}, metricsSchema);
+}
+export async function getPublicMetrics(): Promise<Metrics> {
+  if (!process.env.NEXT_PUBLIC_API_URL) return demoMetrics;
+  return publicApi<Metrics>("/tv/metrics", {}, metricsSchema);
 }

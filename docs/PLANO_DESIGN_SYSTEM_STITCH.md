@@ -4,6 +4,8 @@
 > **Projeto de Destino:** FHDOD / Antigravity (`fhdod-satisfacao`)  
 > **Foco:** Atualização integral da camada UI/UX, Componentes, Tipografia, Cores e Espaçamento com **100% de preservação de lógica de negócios, rotas e dados**.
 
+> **Status:** Documento histórico da proposta inicial. Para a arquitetura e requisitos vigentes, use [ARCHITECTURE.md](ARCHITECTURE.md) e [API_MIGRATION_GAPS.md](API_MIGRATION_GAPS.md). As referências a Supabase/RPC e mural de depoimentos foram substituídas: o frontend usa a API REST e a TV Wall exibe somente métricas agregadas, sem textos ou respostas individuais.
+
 ---
 
 ## 1. Visão Geral & Identidade Visual
