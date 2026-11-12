@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Open_Sans, Space_Grotesk } from "next/font/google";
+import { LibrasAccess } from "@/components/LibrasAccess";
 import "./globals.css";
 
 const openSans = Open_Sans({
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Pular para o conteúdo
         </a>
         {children}
+        <LibrasAccess />
       </body>
     </html>
   );
