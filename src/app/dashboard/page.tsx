@@ -103,7 +103,7 @@ export default async function Dashboard({
             </Link>
           </Button>
         </div>
-        <div className="table-scroll">
+        <div className="table-scroll" role="region" aria-label="Resultados por setor" tabIndex={0}>
           <table>
             <caption className="sr-only">Resultados por setor</caption>
             <thead>
