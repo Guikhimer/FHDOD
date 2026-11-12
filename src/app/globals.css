@@ -199,50 +199,35 @@ fieldset {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  width: 220px;
+  max-width: 100%;
   color: #191c1e;
 }
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: 1px solid #ffdad8;
-  border-radius: 14px;
-  background: #da2f37;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(218, 47, 55, 0.25);
-}
-.brand strong {
+.brand-art {
+  position: relative;
   display: block;
-  font-size: 1.15rem;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-  color: #da2f37;
-  font-weight: 700;
+  width: 100%;
+  aspect-ratio: 22 / 7;
+  overflow: hidden;
+  background: #fff;
 }
-.brand small {
-  display: block;
-  font-size: 0.72rem;
-  color: #424750;
-  line-height: 1.3;
-  font-weight: 500;
+.brand-art img {
+  position: absolute;
+  top: -171.4%;
+  left: 50%;
+  width: 140.91%;
+  max-width: none;
+  height: auto;
+  transform: translateX(-50%);
+}
+.brand:not(.brand-dark) .brand-art {
+  background: transparent;
+}
+.brand:not(.brand-dark) .brand-art img {
+  mix-blend-mode: multiply;
 }
 .brand-dark {
   color: #fff;
-}
-.brand-dark strong {
-  color: #ffffff;
-}
-.brand-dark small {
-  color: #94a3b8;
-}
-.brand-dark .brand-mark {
-  border-color: rgba(56, 189, 248, 0.3);
-  background: linear-gradient(135deg, #0284c7, #0369a1);
-  color: #ffffff;
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
 }
 .eyebrow {
   font-size: 0.78rem;

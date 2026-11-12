@@ -1,4 +1,4 @@
-import { HeartPulse } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 export function Brand({ dark = false }: { dark?: boolean }) {
   return (
@@ -7,16 +7,8 @@ export function Brand({ dark = false }: { dark?: boolean }) {
       className={`brand ${dark ? "brand-dark" : ""}`}
       aria-label="FHDOD — voltar ao início"
     >
-      <span className="brand-mark">
-        <HeartPulse size={28} strokeWidth={1.8} aria-hidden="true" />
-      </span>
-      <span>
-        <strong>FHDOD</strong>
-        <small>
-          Fundação Hospitalar
-          <br />
-          Dr. Oswaldo Diesel
-        </small>
+      <span className="brand-art">
+        <Image src="/logo-fhdod.png" alt="" width={447} height={447} />
       </span>
     </Link>
   );
