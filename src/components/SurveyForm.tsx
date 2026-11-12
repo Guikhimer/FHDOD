@@ -122,7 +122,8 @@ export function SurveyForm({
     if (!digits) return "";
     if (digits.length <= 2) return `(${digits}`;
     if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    if (digits.length <= 10)
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
   }
 
@@ -290,9 +291,7 @@ export function SurveyForm({
       </header>
 
       {demo && (
-        <div className="demo-strip">
-          Demonstração · suas respostas não serão armazenadas.
-        </div>
+        <div className="demo-strip">Demonstração · suas respostas não serão armazenadas.</div>
       )}
 
       <main id="main" className="survey-main">
@@ -342,7 +341,9 @@ export function SurveyForm({
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#191c1e]">100% Anônimo</h3>
-                    <p className="text-sm text-[#424750]">Sua identidade é totalmente preservada.</p>
+                    <p className="text-sm text-[#424750]">
+                      Sua identidade é totalmente preservada.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -385,10 +386,12 @@ export function SurveyForm({
 
               <div className="welcome-facts">
                 <span>
-                  <Check aria-hidden="true" className="text-[#da2f37]" /> Rápido e simples (&lt; 1 min)
+                  <Check aria-hidden="true" className="text-[#da2f37]" /> Rápido e simples (&lt; 1
+                  min)
                 </span>
                 <span>
-                  <LockKeyhole aria-hidden="true" className="text-[#da2f37]" /> Totalmente anônimo (LGPD)
+                  <LockKeyhole aria-hidden="true" className="text-[#da2f37]" /> Totalmente anônimo
+                  (LGPD)
                 </span>
               </div>
 
@@ -420,7 +423,7 @@ export function SurveyForm({
 
             <p className="text-lg text-[#424750] max-w-md mx-auto mb-5 leading-relaxed">
               {demo
-                ? "Você concluiu a demonstração da pesquisa. As escolhas foram registradas no ambiente de testes."
+                ? "Você concluiu a demonstração da pesquisa. Nenhuma resposta foi armazenada."
                 : "Sua opinião foi registrada com sucesso e ajuda diretamente a aprimorar o atendimento aos nossos pacientes."}
             </p>
 
@@ -455,7 +458,8 @@ export function SurveyForm({
                   <span className="absolute font-bold text-xl text-[#da2f37]">{remaining}</span>
                 </div>
                 <p className="text-sm text-[#424750] font-medium" role="status">
-                  A tela reiniciará automaticamente em <strong>{remaining}s</strong> para garantir sua privacidade.
+                  A tela reiniciará automaticamente em <strong>{remaining}s</strong> para garantir
+                  sua privacidade.
                 </p>
                 <Button
                   variant="warm"
@@ -535,10 +539,7 @@ export function SurveyForm({
                   const value = i + 1;
                   const isSelected = answers[current.id] === value;
                   return (
-                    <label
-                      className={`rating-option ${isSelected ? "selected" : ""}`}
-                      key={value}
-                    >
+                    <label className={`rating-option ${isSelected ? "selected" : ""}`} key={value}>
                       <input
                         type="radio"
                         className="choice-input"
@@ -585,10 +586,7 @@ export function SurveyForm({
                 <legend className="sr-only">Nota de recomendação obrigatória, de 0 a 10</legend>
                 <div className="nps-grid">
                   {Array.from({ length: 11 }, (_, value) => (
-                    <label
-                      key={value}
-                      className={`nps-option ${nps === value ? "selected" : ""}`}
-                    >
+                    <label key={value} className={`nps-option ${nps === value ? "selected" : ""}`}>
                       <input
                         className="choice-input"
                         type="radio"
@@ -638,8 +636,12 @@ export function SurveyForm({
                       <Check size={16} strokeWidth={3} />
                     </div>
                     <div>
-                      <strong className="block text-base">Não precisa, prefiro manter anônimo</strong>
-                      <span className="text-xs">Sua opinião será contabilizada sem identificação pessoal.</span>
+                      <strong className="block text-base">
+                        Não precisa, prefiro manter anônimo
+                      </strong>
+                      <span className="text-xs">
+                        Sua opinião será contabilizada sem identificação pessoal.
+                      </span>
                     </div>
                   </button>
 
@@ -660,8 +662,12 @@ export function SurveyForm({
                       <Check size={16} strokeWidth={3} />
                     </div>
                     <div>
-                      <strong className="block text-base">Sim, quero receber retorno da Ouvidoria</strong>
-                      <span className="text-xs">Informe seu telefone ou WhatsApp para acolhimento da equipe.</span>
+                      <strong className="block text-base">
+                        Sim, quero receber retorno da Ouvidoria
+                      </strong>
+                      <span className="text-xs">
+                        Informe seu telefone ou WhatsApp para acolhimento da equipe.
+                      </span>
                     </div>
                   </button>
                 </div>
@@ -701,7 +707,10 @@ export function SurveyForm({
                 {/* Campo de Telefone e Teclado Virtual (apenas se optou por retorno) */}
                 {wantsContact && (
                   <div className="bg-[#f7f9fb] p-4 rounded-2xl border border-[#c2c6d2] mt-2">
-                    <label htmlFor={`${instanceId}-contact`} className="flex items-center gap-2 mb-2">
+                    <label
+                      htmlFor={`${instanceId}-contact`}
+                      className="flex items-center gap-2 mb-2"
+                    >
                       <Phone size={18} className="text-[#da2f37]" />
                       <span>Telefone ou WhatsApp com DDD</span>
                     </label>
@@ -769,7 +778,8 @@ export function SurveyForm({
                         disabled={sending}
                       />
                       <span className="text-sm">
-                        Autorizo a ouvidoria a usar este telefone exclusivamente para retorno sobre esta avaliação.
+                        Autorizo a ouvidoria a usar este telefone exclusivamente para retorno sobre
+                        esta avaliação.
                       </span>
                     </label>
                   </div>
@@ -777,7 +787,9 @@ export function SurveyForm({
 
                 <p className="privacy-note mt-3">
                   <LockKeyhole size={18} aria-hidden="true" className="text-[#da2f37]" />
-                  <span>Protegido conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018 - LGPD).</span>
+                  <span>
+                    Protegido conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018 - LGPD).
+                  </span>
                 </p>
               </div>
             )}

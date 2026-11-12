@@ -258,7 +258,12 @@ export default async function Manage() {
               <h2>Pessoas da equipe</h2>
             </div>
             {profiles.length ? (
-              <div className="table-scroll">
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label="Pessoas da equipe"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
