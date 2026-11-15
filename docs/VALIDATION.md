@@ -1,20 +1,23 @@
-# Verificação da implementação inicial
+# Validação da aplicação
 
-Executada em 2 de outubro de 2026, em modo de demonstração local, sem credenciais de serviços externos.
+## Comandos
 
-| Verificação                                   | Resultado                                                  |
-| --------------------------------------------- | ---------------------------------------------------------- |
-| TypeScript e build de produção Next.js        | Aprovados                                                  |
-| ESLint                                        | Sem erros e sem avisos                                     |
-| Testes Vitest                                 | 13 aprovados                                               |
-| Testes Playwright Chromium                    | 5 aprovados                                                |
-| axe: formulário móvel, dashboard e painel TV  | Sem violações automáticas nas regras AA verificadas        |
-| npm audit após atualização de UUID do ExcelJS | Zero vulnerabilidades reportadas                           |
-| Excel gerado                                  | Baixado e aberto novamente com ExcelJS; conteúdo conferido |
-| Capturas de tela                              | Formulário móvel, dashboard e painel TV revisados          |
+```powershell
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm exec playwright install chromium
+npm run test:e2e
+```
 
-Os testes de banco usam o SQL real em PGlite (PostgreSQL), com roles e um schema Auth mínimo. Cobrem isolamento de setores, bloqueio de promoção de perfil, NPS zero, notas opcionais, rollback de envios inválidos, idempotência, intervalo entre envios, acesso exclusivo do administrador a contatos, métricas sob RLS e fila de notificações.
+## Escopo de testes
 
-Os testes de navegador cobrem navegação sem notas opcionais, NPS obrigatório, ouvidoria condicional e consentimento, reinício com limpeza de escolhas, ampliação de texto, seleção por teclado, indisponibilidade durante envio, preservação do identificador em nova tentativa e download do Excel.
+- Unitários: validação de submissão, filtros e mapeamento do modelo de tela para o contrato da API.
+- Banco legado: `tests/database.test.ts` executa as migrations históricas do diretório `supabase/` em PGlite. Esse teste valida a primeira implementação e não configura nem representa o runtime atual baseado na API.
+- HTTP/E2E: autenticação, troca obrigatória de senha, pesquisa pública com idempotência, envio de notas opcionais, autorização por papel, exportação e estados de falha devem ser exercitados com backend isolado e dados descartáveis.
+- A TV Wall deve ser acessível sem sessão e conter apenas indicadores agregados; conferir no DOM que não há texto livre, contato ou identificador de respostas.
 
-Supabase Auth real, políticas no ambiente hospedado, entrega por Resend, agendamento Cron e conexão Realtime ainda precisam de uma verificação em um projeto Supabase configurado. A verificação automática não substitui auditoria completa de acessibilidade com leitores de tela e usuários. Não houve publicação na Vercel nem criação de infraestrutura externa.
+## Limites da validação local
+
+Execuções sem `NEXT_PUBLIC_API_URL` ficam no modo de demonstração e não comprovam integração. Testes com dados reais devem usar backend e banco de teste dedicados, nunca produção. A aplicação não verifica provisionamento de Aiven, deploy, entrega de e-mail ou configuração de domínio.

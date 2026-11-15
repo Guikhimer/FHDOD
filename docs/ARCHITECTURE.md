@@ -1,86 +1,67 @@
-# Arquitetura inicial
+# Arquitetura vigente do frontend
 
-## 1. Banco e segurança
+## Componentes e limites
 
-O DDL completo está em `supabase/migrations/202610020001_initial_schema.sql`, incluindo a pergunta NPS obrigatória inicial. Aplique a migração antes da aplicação e execute `supabase/seed.sql` uma única vez para criar três setores e as perguntas opcionais iniciais. O seed não cria pacientes, respostas ou usuários.
+```text
+Navegador
+  └─ Next.js (interface, Server Components, Server Actions e BFF)
+       └─ API REST FHDOD (`/api/v1`, autenticação bearer)
+            └─ PostgreSQL gerenciado pela API (Aiven no ambiente implantado)
+```
 
-| Tabela                    | Finalidade                                                           |
-| ------------------------- | -------------------------------------------------------------------- |
-| profiles                  | Identidade ligada ao Supabase Auth, role, ativação e primeiro acesso |
-| sectors                   | Setores e slugs públicos únicos                                      |
-| sector_managers           | Vínculo muitos-para-muitos entre gestores e setores                  |
-| surveys                   | Pesquisa do setor, publicação e tempo de reinício do tablet          |
-| questions                 | Perguntas setoriais, gerais e NPS global                             |
-| responses                 | Nota NPS obrigatória, plantão e horário de envio                     |
-| answers                   | Notas opcionais de 1 a 5 e cópia do texto da pergunta                |
-| complaints                | Comentário e contato opcionais, autorização e situação               |
-| app_settings              | Destinatários e ativação das notificações                            |
-| private.submission_keys   | Idempotência e hash de sessão, inacessíveis aos clientes             |
-| private.notification_jobs | Fila transacional de avisos com bloqueio e novas tentativas          |
+O frontend não abre conexão PostgreSQL e não contém credenciais Supabase operacionais. `NEXT_PUBLIC_API_URL` configura a origem da API; apesar do prefixo público usado pelo Next para compilar a origem, nenhum segredo acompanha essa variável. `src/lib/api.ts` centraliza chamadas autenticadas feitas no servidor, e `src/lib/api-schemas.ts` valida respostas de leitura com Zod. O navegador não recebe tokens JWT.
 
-Clientes públicos consultam somente `get_public_survey(slug)`. A API Next.js valida os dados e chama `submit_survey` com uma chave de serviço exclusivamente no servidor. O banco valida novamente o NPS, as notas, perguntas ativas, setor, duplicações e autorização de contato. A transação grava resposta, notas, ouvidoria e fila; uma falha desfaz tudo.
+## Sessão e autorização
 
-O papel do usuário não é lido de metadata enviada por ele. O trigger cria perfis inativos, com role de gestor e primeiro acesso obrigatório. Somente o administrador ativa usuários e atribui setores. Gestores não podem promover seu perfil, modificar perguntas gerais ou ler respostas de outro setor. A troca de senha é realizada pelo Supabase Auth antes de o servidor liberar `must_change_password`.
+- Login, refresh, logout e troca de senha usam os endpoints reais de `/auth`.
+- O Next mantém access e refresh tokens em cookies `HttpOnly`; em produção, `Secure` e `SameSite=Lax`. O proxy valida sessão e tenta refresh em navegação protegida; autorização efetiva continua no backend.
+- `mustChangePassword` direciona para `/auth/first-access`; o painel não é liberado antes da troca.
+- O backend aplica as regras Admin, Ouvidoria e Gestor. Gestores consultam o dashboard apenas para os próprios setores; Admin e Ouvidoria têm acesso operacional global. Somente Admin lista/cria contas.
+- Comentários e telefones da Ouvidoria não são incluídos para gestores e não aparecem na TV Wall pública. A rota de Excel também é bloqueada a gestores.
 
-A leitura administrativa usa a sessão do usuário e RLS, inclusive exportação e agregações. Contatos e comentários são exclusivos do administrador. A publicação Realtime contém somente `responses`; não contém dados de ouvidoria, chaves de sessão ou notas individuais. O painel TV exige uma conta e apresenta apenas agregados. Para exibição prolongada, use uma conta de gestor dedicada aos setores desejados.
+## Fluxos de dados
 
-## 2. Estrutura
+- **Pesquisa pública:** Server Component carrega setor e questões ativas via `GET /surveys/public/{slug}`. O Route Handler valida a submissão, verifica origem e tamanho e repassa `Idempotency-Key` ao backend. NPS 0–10 é obrigatório; notas 1–5 são opcionais. `attendedAt` guarda a data/hora do atendimento, distinta de `created_at`. O servidor da API mantém `shift` nulo; plantões estão fora do escopo atual.
+- **Dashboard:** Server Components consultam métricas e setores. O backend calcula escopo de gestores, filtros e agregados.
+- **Ouvidoria e gestão:** Server Actions validam os dados com Zod e usam endpoints REST. Usuário novo é criado pelo Admin com senha temporária, hash Argon2id no backend e troca obrigatória no primeiro acesso. A senha temporária é definida pelo Admin e deve ser compartilhada por canal seguro.
+- **Excel:** Route Handler do Next pagina respostas do backend e gera planilhas de respostas e notas. Comentários/contatos entram somente para Admin e Ouvidoria. Gestores não têm acesso a esse endpoint.
+- **TV Wall:** rota pública `/tv-wall`; consome `/tv/metrics`, que devolve somente agregados. Não renderiza amostras, comentários, telefones ou respostas individuais.
+
+## Modelo de negócio preservado
+
+- NPS e notas de avaliação são medidas diferentes. NPS de 0–10 é obrigatório; avaliações de 1–5 são opcionais.
+- Mensagens da Ouvidoria são texto livre e classificação/vinculação com equipe ou profissional é humana.
+- A Ouvidoria só é registrada quando há avaliação menor que 3, conforme regra vigente no backend.
+- Contato é opcional e só pode ser enviado com consentimento.
+- A retenção de respostas, comentários, contatos e histórico é indefinida. Não existe rotina de expurgo nesta migração.
+- A TV Wall exibe indicadores agregados públicos.
+
+## Limites conhecidos
+
+- Os endpoints de publicação e criação de perguntas/setores estão implementados. Edição/arquivamento de setores e edição/arquivamento de pesquisas continuam fora da UI.
+- A API persiste preferências de notificações e enfileira ocorrências, mas o worker que efetivamente envia e-mails ainda precisa ser operacionalizado.
+- A associação humana de respostas a profissionais/equipes não possui interface nesta versão.
+- `supabase/` e testes de banco antigos são artefatos históricos da versão monolítica; não fazem parte do runtime atual. Migrações históricas devem ser preservadas.
+
+## Estrutura relevante
 
 ```text
 src/
   app/
-    layout.tsx, page.tsx, globals.css, error.tsx, not-found.tsx
-    p/[slug]/page.tsx
-    api/surveys/[slug]/route.ts
-    api/reports/route.ts
-    login/page.tsx
-    auth/actions.ts
-    auth/callback/route.ts
-    auth/first-access/page.tsx
-    dashboard/layout.tsx, page.tsx
-    dashboard/manage/page.tsx, actions.ts
-    dashboard/tv-wall/page.tsx
-  components/
-    ui/button.tsx
-    SurveyForm.tsx, RatingFace.tsx, Brand.tsx, ActionForm.tsx
-    DashboardShell.tsx, MetricsCards.tsx, DashboardCharts.tsx
-    RealtimeRefresh.tsx
-  lib/
-    supabase/client.ts, server.ts, admin.ts
-    auth.ts, env.ts, dashboard.ts, demo.ts
-    survey-validation.ts, filters.ts, utils.ts
-  types/index.ts
-  proxy.ts
-supabase/
-  migrations/202610020001_initial_schema.sql
-  seed.sql, config.toml
-  functions/notify-complaints/index.ts
-  operations/schedule-notifications.sql
-tests/
+    api/reports/route.ts              # Exportação Excel via API
+    api/surveys/[slug]/route.ts       # BFF de submissão pública
+    auth/actions.ts                   # Sessão da API
+    dashboard/                        # Painel e gestão
+    p/[slug]/page.tsx                 # Pesquisa por setor
+    tv-wall/page.tsx                  # Painel público agregado
+  components/                         # Interface reutilizável
+  lib/api.ts                          # Cliente server-side
+  lib/api-schemas.ts                  # Validação de respostas
+  lib/auth.ts                         # Perfil e proteção de página
+  lib/dashboard.ts                    # Métricas e setores
+  proxy.ts                            # Validação/renovação otimista de sessão
 docs/
+  API_MIGRATION_GAPS.md
+  ARCHITECTURE.md
+  VALIDATION.md
 ```
-
-Server Components carregam dados; formulários administrativos usam Server Actions; o envio público e o Excel usam Route Handlers. A sessão SSR é renovada por `src/proxy.ts`. O botão segue a composição Shadcn/UI com Radix Slot e Class Variance Authority, personalizado para alvos amplos; `components.json` permite ampliar o conjunto. Tailwind CSS 4 e CSS global definem o design inclusivo, sem depender de fontes externas.
-
-## 3. Interface do paciente
-
-`SurveyForm.tsx` ordena perguntas setoriais, gerais e NPS. A RPC também fornece essa ordem. Uma pergunta é exibida por tela, com legenda textual e escala visual em SVG. Somente o NPS é obrigatório; a nota zero é válida. Uma nota opcional 1 ou 2 adiciona a etapa da ouvidoria após o NPS. Comentário e telefone continuam opcionais, e contato preenchido exige autorização.
-
-O formulário oferece A−/A+ de 18 até 24px para conteúdo e controles, navegação por teclado, grupos de rádio nativos, foco no título da etapa, progresso, mensagens de erro e confirmação. Alvos interativos têm pelo menos 48px; cores não são a única indicação de escolha. O layout se adapta a celulares e zoom. A conformidade WCAG integral requer auditoria humana com leitores de tela e avaliação de usuários, além da verificação automática incluída.
-
-Use `/p/pronto-atendimento?tablet=1` para reinício automático após o tempo da pesquisa (20 segundos por padrão). Campos são limpos ao enviar e antes da próxima pessoa. Não gravamos comentários, contatos ou notas em armazenamento local. A UUID de envio fica apenas em memória e é reutilizada em novas tentativas. Um cookie HttpOnly assinado por hash HMAC identifica a sessão no servidor; o banco bloqueia novos envios por 8 segundos e retorna a mesma resposta para uma UUID já recebida. Isso evita acidentes; não é proteção completa contra robôs ou múltiplos dispositivos. Antes de grande exposição pública, configure limites de requisição no serviço de hospedagem.
-
-## 4. Indicadores e relatórios
-
-- NPS = 100 × (promotores 9–10 − detratores 0–6) / total. Neutros: 7–8. Escala −100 a +100.
-- Média = média das notas opcionais, escala 1–5.
-- Satisfação = percentual das notas opcionais 4 ou 5; não é o NPS e não é média convertida em porcentagem.
-- Ausência de respostas aparece como `—`, nunca como uma nota artificialmente positiva.
-- Plantões iniciais: manhã 7–13h, tarde 13–19h, noite 19–7h, horário de São Paulo. O banco determina o plantão pelo horário de envio. Ajuste esse mapeamento à escala real da fundação.
-- Datas incluem o dia final inteiro. O Excel preserva o texto original da pergunta e pagina resultados; não se limita às primeiras mil linhas. Contatos e comentários só entram no Excel do administrador.
-
-## Escopo da base e próximos incrementos
-
-Inclui criação de setores/pesquisas/perguntas, desativação de perguntas, convite de usuários, preferências de aviso, acompanhamento da ouvidoria, indicadores e Excel. Edição avançada de perguntas/setores, reatribuição e suspensão de usuários pela UI, versionamento de pesquisas, escalas configuráveis, trilha de auditoria, retenção e expurgo ficam para próximas features. Essas operações podem ser administradas no Supabase enquanto a UI é ampliada. O esquema usa restrições e preserva perguntas com respostas em vez de apagá-las.
-
-Sem credenciais, as telas exibem dados fictícios identificados e não armazenam avaliações. Os filtros nesse modo retornam um estado vazio para não simular resultados inexistentes; o Excel de demonstração contém somente exemplos por setor. Nenhum banco ou serviço externo foi provisionado por esta implementação.

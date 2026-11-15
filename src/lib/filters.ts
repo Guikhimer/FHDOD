@@ -6,7 +6,6 @@ export const filtersSchema = z
     sector: z.uuid().optional(),
     from: date,
     to: date,
-    shift: z.enum(["morning", "afternoon", "night"]).optional(),
   })
   .refine((f) => !f.from || !f.to || f.from <= f.to, "O início deve ser anterior ao fim.");
 export function parseFilters(

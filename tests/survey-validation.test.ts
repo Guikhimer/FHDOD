@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { submissionSchema } from "@/lib/survey-validation";
 import { filterDates, parseFilters } from "@/lib/filters";
-const payload = { submissionId: "00000000-0000-4000-8000-000000000001", nps: 0, answers: [] };
+const payload = { submissionId: "00000000-0000-4000-8000-000000000001", attendedAt: "2026-10-01T12:00:00.000Z", nps: 0, answers: [] };
 describe("public submission boundary", () => {
   it("accepts NPS zero and no optional answers", () => {
     expect(submissionSchema.safeParse(payload).success).toBe(true);
@@ -11,20 +11,20 @@ describe("public submission boundary", () => {
     expect(
       submissionSchema.safeParse({
         ...payload,
-        answers: [{ question_id: payload.submissionId, value: 6 }],
+        answers: [{ question_id: payload.submissionId, value: 6, question_text: "Atendimento" }],
       }).success,
     ).toBe(false);
     expect(
       submissionSchema.safeParse({
         ...payload,
-        answers: Array(2).fill({ question_id: payload.submissionId, value: 5 }),
+        answers: Array(2).fill({ question_id: payload.submissionId, value: 5, question_text: "Atendimento" }),
       }).success,
     ).toBe(false);
   });
   it("requires consent only when contact is given, and only opens complaints for low ratings", () => {
     const low = {
       ...payload,
-      answers: [{ question_id: payload.submissionId, value: 1 }],
+      answers: [{ question_id: payload.submissionId, value: 1, question_text: "Atendimento" }],
       contact: "(51) 99999-9999",
     };
     expect(submissionSchema.safeParse(low).success).toBe(false);
