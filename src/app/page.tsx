@@ -10,11 +10,10 @@ import {
 } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { Button } from "@/components/ui/button";
-import { hasSupabase } from "@/lib/env";
 import { demoSectors } from "@/lib/demo";
 
 export default function Home() {
-  const demo = !hasSupabase();
+  const demo = !process.env.NEXT_PUBLIC_API_URL;
   return (
     <div className="home-shell">
       <header className="public-header">

@@ -1,29 +1,16 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { hasSupabase } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import { apiRequest } from "@/lib/api";
 import type { Profile } from "@/types";
+import { profileSchema } from "@/lib/api-schemas";
 export async function requireProfile(): Promise<Profile> {
-  if (!hasSupabase())
-    return {
-      id: "demo",
-      full_name: "Equipe FHDOD",
-      role: "admin",
-      active: true,
-      must_change_password: false,
-    };
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) redirect("/login");
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id,full_name,role,active,must_change_password")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.active) redirect("/login?error=inactive");
-  if (profile.must_change_password) redirect("/auth/first-access");
-  return profile as Profile;
+  if (!process.env.NEXT_PUBLIC_API_URL) {
+    return { id: "demo-profile", full_name: "Equipe FHDOD (demonstração)", role: "admin", active: true, must_change_password: false };
+  }
+  let data: { id: string; full_name: string; role: Profile["role"]; active: boolean; mustChangePassword: boolean };
+  try {
+    data = await apiRequest("/auth/me", {}, profileSchema);
+  } catch { redirect("/login"); }
+  if (data.mustChangePassword) redirect("/auth/first-access");
+  return { id: data.id, full_name: data.full_name, role: data.role, active: data.active, must_change_password: data.mustChangePassword };
 }

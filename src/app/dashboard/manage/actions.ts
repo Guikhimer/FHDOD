@@ -2,179 +2,73 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { hasSupabase } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { apiRequest } from "@/lib/api";
 import type { FormState } from "@/components/ActionForm";
-async function authorize(admin = false) {
+const failure = { error: "Não foi possível salvar. Confira os campos e suas permissões." };
+async function canManage(admin = false) {
   const profile = await requireProfile();
-  if (!hasSupabase()) return "As alterações ficam disponíveis após configurar o Supabase.";
-  if (admin && profile.role !== "admin")
-    return "Esta ação está disponível apenas para administradores.";
+  if (profile.role === "sector_manager") return "Gestores têm acesso somente de consulta ao dashboard.";
+  if (admin && profile.role !== "admin") return "Esta ação está disponível apenas para o Admin.";
   return null;
 }
-const failure = { error: "Não foi possível salvar. Confira os campos e suas permissões." };
 export async function createSector(_state: FormState, form: FormData): Promise<FormState> {
-  const denied = await authorize(true);
-  if (denied) return { error: denied };
-  const parsed = z
-    .object({
-      name: z.string().trim().min(2).max(100),
-      slug: z
-        .string()
-        .max(100)
-        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
-    })
-    .safeParse(Object.fromEntries(form));
-  if (!parsed.success)
-    return { error: "Informe o nome e um endereço usando letras minúsculas, números e hífens." };
-  const client = await createClient();
-  const { error } = await client.from("sectors").insert(parsed.data);
-  if (error) return failure;
-  revalidatePath("/dashboard/manage");
-  return { success: "Setor criado. Cadastre uma pesquisa para publicar o link." };
+  if (await canManage()) return { error: "Ação não autorizada." };
+  const parsed = z.object({ name: z.string().trim().min(2).max(100), slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).max(100) }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return failure;
+  try { await apiRequest("/sectors", { method: "POST", body: JSON.stringify(parsed.data) }); revalidatePath("/dashboard/manage"); return { success: "Setor criado." }; } catch { return failure; }
 }
 export async function createSurvey(_state: FormState, form: FormData): Promise<FormState> {
-  const denied = await authorize();
-  if (denied) return { error: denied };
-  const parsed = z
-    .object({
-      sector_id: z.uuid(),
-      title: z.string().trim().min(2).max(150),
-      tablet_reset_seconds: z.coerce.number().int().min(10).max(120),
-    })
-    .safeParse(Object.fromEntries(form));
+  if (await canManage()) return { error: "Ação não autorizada." };
+  const parsed = z.object({ sector_id: z.uuid(), title: z.string().trim().min(2).max(150), tablet_reset_seconds: z.coerce.number().int().min(10).max(120) }).safeParse(Object.fromEntries(form));
   if (!parsed.success) return failure;
-  const client = await createClient();
-  const { error } = await client.from("surveys").insert({ ...parsed.data, status: "published" });
-  if (error)
-    return { error: "Não foi possível publicar. O setor pode já ter uma pesquisa publicada." };
-  revalidatePath("/dashboard/manage");
-  return { success: "Pesquisa publicada. O link do setor já pode receber avaliações." };
+  try { await apiRequest("/surveys", { method: "POST", body: JSON.stringify(parsed.data) }); revalidatePath("/dashboard/manage"); return { success: "Pesquisa publicada." }; } catch { return { error: "Não foi possível publicar. O setor pode já ter uma pesquisa publicada." }; }
 }
 export async function createQuestion(_state: FormState, form: FormData): Promise<FormState> {
-  const denied = await authorize();
-  if (denied) return { error: denied };
-  const profile = await requireProfile();
-  const sector = form.get("sector_id");
-  if (!sector && profile.role !== "admin") return failure;
-  const parsed = z
-    .object({
-      text: z.string().trim().min(3).max(300),
-      position: z.coerce.number().int().min(0).max(1000),
-      sector_id: z.uuid().nullable(),
-    })
-    .safeParse({
-      text: form.get("text"),
-      position: form.get("position"),
-      sector_id: sector || null,
-    });
+  if (await canManage()) return { error: "Ação não autorizada." };
+  const parsed = z.object({ text: z.string().trim().min(3).max(300), position: z.coerce.number().int().min(0).max(1000), sector_id: z.uuid().nullable() }).safeParse({ ...Object.fromEntries(form), sector_id: form.get("sector_id") || null });
   if (!parsed.success) return failure;
-  const client = await createClient();
-  const { error } = await client.from("questions").insert({ ...parsed.data, kind: "rating" });
-  if (error) return failure;
-  revalidatePath("/dashboard/manage");
-  return { success: "Pergunta adicionada à pesquisa." };
+  try { await apiRequest("/questions", { method: "POST", body: JSON.stringify(parsed.data) }); revalidatePath("/dashboard/manage"); return { success: "Pergunta adicionada." }; } catch { return failure; }
 }
 export async function archiveQuestion(_state: FormState, form: FormData): Promise<FormState> {
-  const denied = await authorize();
-  if (denied) return { error: denied };
-  const id = z.uuid().safeParse(form.get("id"));
-  if (!id.success) return failure;
-  const client = await createClient();
-  const { data, error } = await client
-    .from("questions")
-    .update({ active: false })
-    .eq("id", id.data)
-    .eq("kind", "rating")
-    .select("id");
-  if (error || !data?.length) return failure;
-  revalidatePath("/dashboard/manage");
-  return { success: "Pergunta desativada. As respostas anteriores foram preservadas." };
+  if (await canManage()) return { error: "Ação não autorizada." };
+  const id = z.uuid().safeParse(form.get("id")); if (!id.success) return failure;
+  try { await apiRequest(`/questions/${id.data}`, { method: "PATCH", body: JSON.stringify({ active: false }) }); revalidatePath("/dashboard/manage"); return { success: "Pergunta desativada." }; } catch { return failure; }
 }
 export async function inviteUser(_state: FormState, form: FormData): Promise<FormState> {
-  const denied = await authorize(true);
-  if (denied) return { error: denied };
-  const parsed = z
-    .object({
-      email: z.email(),
-      full_name: z.string().trim().min(2).max(150),
-      role: z.enum(["admin", "sector_manager"]),
-      sectors: z.array(z.uuid()),
-    })
-    .safeParse({ ...Object.fromEntries(form), sectors: form.getAll("sectors") });
-  if (!parsed.success || (parsed.data.role === "sector_manager" && !parsed.data.sectors.length))
-    return { error: "Confira o nome, e-mail e os setores sob responsabilidade do gestor." };
-  const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-    data: { full_name: parsed.data.full_name },
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-  });
-  if (error || !data.user)
-    return {
-      error:
-        "Não foi possível enviar o convite. Confira se o usuário já existe e se o e-mail está configurado.",
-    };
-  // Profiles are inactive until role and assignments are successfully configured.
-  const { error: assignmentError } =
-    parsed.data.role === "sector_manager"
-      ? await admin
-          .from("sector_managers")
-          .insert(parsed.data.sectors.map((sector_id) => ({ profile_id: data.user.id, sector_id })))
-      : { error: null };
-  if (assignmentError)
-    return {
-      error:
-        "Convite enviado, mas o acesso ficou inativo porque os setores não puderam ser atribuídos. Corrija o cadastro no Supabase.",
-    };
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update({ role: parsed.data.role, active: true, must_change_password: true })
-    .eq("id", data.user.id);
-  if (profileError)
-    return {
-      error: "Convite enviado, mas o perfil não pôde ser ativado. Confira o cadastro no Supabase.",
-    };
-  revalidatePath("/dashboard/manage");
-  return { success: "Convite enviado. O usuário deverá definir uma senha no primeiro acesso." };
+  if (await canManage(true)) return { error: "Somente Admin pode criar logins." };
+  const parsed = z.object({
+    full_name: z.string().trim().min(2).max(150),
+    email: z.email().max(254),
+    role: z.enum(["admin", "ombudsman", "sector_manager"]),
+    temporary_password: z.string().min(12).max(200),
+  }).safeParse(Object.fromEntries(form));
+  const sectorIds = z.array(z.uuid()).max(100).safeParse(form.getAll("sectors"));
+  if (!parsed.success || !sectorIds.success) return { error: "Confira nome, e-mail, senha temporária e setores." };
+  if ((parsed.data.role === "sector_manager" && !sectorIds.data.length) || (parsed.data.role !== "sector_manager" && sectorIds.data.length)) {
+    return { error: "Gestores precisam de ao menos um setor; os demais perfis não recebem setores." };
+  }
+  try {
+    await apiRequest("/users", { method: "POST", body: JSON.stringify({
+      email: parsed.data.email,
+      fullName: parsed.data.full_name,
+      role: parsed.data.role,
+      temporaryPassword: parsed.data.temporary_password,
+      sectorIds: sectorIds.data,
+    }) });
+    revalidatePath("/dashboard/manage");
+    return { success: "Conta criada. Entregue a senha temporária por um canal seguro; a troca será exigida no primeiro acesso." };
+  } catch { return failure; }
 }
 export async function saveSettings(_state: FormState, form: FormData): Promise<FormState> {
-  const denied = await authorize(true);
-  if (denied) return { error: denied };
-  const emails = String(form.get("emails") || "")
-    .split(/[\s,;]+/)
-    .filter(Boolean);
-  const parsed = z.array(z.email()).max(20).safeParse(emails);
-  if (!parsed.success) return { error: "Informe e-mails válidos, separados por vírgula." };
-  const enabled = form.get("enabled") === "on";
-  if (enabled && !emails.length)
-    return { error: "Informe pelo menos um destinatário para ativar os avisos." };
-  const client = await createClient();
-  const { error } = await client
-    .from("app_settings")
-    .update({
-      notification_emails: parsed.data,
-      notifications_enabled: enabled,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", true);
-  if (error) return failure;
-  revalidatePath("/dashboard/manage");
-  return { success: "Preferências de notificação salvas." };
+  if (await canManage()) return { error: "Ação não autorizada." };
+  const emails = String(form.get("emails") || "").split(/[\s,;]+/).filter(Boolean);
+  const parsed = z.array(z.email()).max(20).safeParse(emails); const enabled = form.get("enabled") === "on";
+  if (!parsed.success || (enabled && !emails.length)) return { error: "Informe destinatários válidos para ativar os avisos." };
+  try { await apiRequest("/settings/notifications", { method: "PUT", body: JSON.stringify({ notification_emails: parsed.data, notifications_enabled: enabled }) }); revalidatePath("/dashboard/manage"); return { success: "Preferências salvas." }; } catch { return failure; }
 }
 export async function updateComplaint(_state: FormState, form: FormData): Promise<FormState> {
-  const denied = await authorize(true);
-  if (denied) return { error: denied };
-  const parsed = z
-    .object({ id: z.uuid(), status: z.enum(["open", "in_progress", "closed"]) })
-    .safeParse(Object.fromEntries(form));
+  if (await canManage()) return { error: "Ação não autorizada." };
+  const parsed = z.object({ id: z.uuid(), status: z.enum(["open", "in_progress", "closed"]) }).safeParse(Object.fromEntries(form));
   if (!parsed.success) return failure;
-  const client = await createClient();
-  const { error } = await client
-    .from("complaints")
-    .update({ status: parsed.data.status })
-    .eq("id", parsed.data.id);
-  if (error) return failure;
-  revalidatePath("/dashboard/manage");
-  return { success: "Situação atualizada." };
+  try { await apiRequest(`/complaints/${parsed.data.id}`, { method: "PATCH", body: JSON.stringify({ status: parsed.data.status }) }); revalidatePath("/dashboard/manage"); return { success: "Situação atualizada." }; } catch { return failure; }
 }
