@@ -17,7 +17,7 @@ export default async function TVWall() {
     <main id="main" className="tv-wall">
       <header>
         <div className="tv-brand-group">
-          <Brand dark />
+          <Brand dark tv />
           <div className="tv-brand-copy">
             <strong>Experiência do paciente</strong>
             <span>Indicadores gerais da pesquisa</span>
