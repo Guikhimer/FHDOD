@@ -23,6 +23,7 @@ export default async function SurveyPage({
       survey = { id: slug, title: data.title, sector_id: data.sector.id, sector_name: data.sector.name, sector_slug: slug, tablet_reset_seconds: data.tabletResetSeconds, questions: data.questions.map((question, position) => ({ id: question.id, text: question.text, kind: question.kind, sector_id: question.sectorId, position })) };
     } catch { survey = null; }
   }
-  if (!survey || !survey.questions.some((q) => q.kind === "nps")) notFound();
+  // SurveyForm always includes the required NPS step, even without a stored question.
+  if (!survey) notFound();
   return <SurveyForm survey={survey} demo={demo} tablet={tablet === "1"} />;
 }
