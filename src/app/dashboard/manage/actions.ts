@@ -21,7 +21,22 @@ export async function createSurvey(_state: FormState, form: FormData): Promise<F
   if (await canManage()) return { error: "Ação não autorizada." };
   const parsed = z.object({ sector_id: z.uuid(), title: z.string().trim().min(2).max(150), tablet_reset_seconds: z.coerce.number().int().min(10).max(120) }).safeParse(Object.fromEntries(form));
   if (!parsed.success) return failure;
-  try { await apiRequest("/surveys", { method: "POST", body: JSON.stringify(parsed.data) }); revalidatePath("/dashboard/manage"); return { success: "Pesquisa publicada." }; } catch { return { error: "Não foi possível publicar. O setor pode já ter uma pesquisa publicada." }; }
+  try { await apiRequest("/surveys", { method: "POST", body: JSON.stringify(parsed.data) }); revalidatePath("/dashboard/manage"); revalidatePath("/"); revalidatePath("/p/[slug]", "page"); return { success: "Pesquisa publicada." }; } catch { return { error: "Não foi possível publicar. O setor pode já ter uma pesquisa publicada." }; }
+}
+export async function deleteSurvey(_state: FormState, form: FormData): Promise<FormState> {
+  if (await canManage()) return { error: "Ação não autorizada." };
+  if (!process.env.NEXT_PUBLIC_API_URL) return { error: "Exclusão indisponível no modo de demonstração." };
+  const parsed = z.object({ id: z.uuid(), confirmed: z.literal("yes") }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: "Confirme a pesquisa que deseja excluir." };
+  try {
+    await apiRequest(`/surveys/${parsed.data.id}`, { method: "DELETE" });
+    revalidatePath("/dashboard/manage");
+    revalidatePath("/");
+    revalidatePath("/p/[slug]", "page");
+    return { success: "Pesquisa excluída. As avaliações recebidas foram preservadas." };
+  } catch {
+    return { error: "Não foi possível excluir a pesquisa. Atualize a página e tente novamente." };
+  }
 }
 export async function createQuestion(_state: FormState, form: FormData): Promise<FormState> {
   if (await canManage()) return { error: "Ação não autorizada." };

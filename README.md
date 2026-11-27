@@ -40,6 +40,12 @@ A pesquisa pública usa `GET /api/v1/surveys/public/{slug}` e envia para o backe
 
 O painel público `/tv-wall` recebe somente agregados e não mostra relatos, telefones ou linhas de respostas. A equipe de Ouvidoria e Admin consultam dados individuais da Ouvidoria; gestores têm somente o dashboard dos setores autorizados e não podem exportar dados brutos.
 
+## Gestão de pesquisas
+
+Admin e Ouvidoria encontram as pesquisas criadas em `/dashboard/manage`. A opção **Excluir pesquisa** solicita confirmação e retira a pesquisa da tela inicial e dos acessos públicos. As avaliações recebidas permanecem nos indicadores, relatórios e Ouvidoria. O setor fica disponível para publicar outra pesquisa. No modo de demonstração, a exclusão fica desativada.
+
+Esse fluxo exige o backend com `GET /api/v1/surveys` e `DELETE /api/v1/surveys/{id}`. Publique a atualização do backend antes do frontend; o arquivamento usa a estrutura existente e não exige migration.
+
 ## Notificações
 
 A tela salva destinatários e a preferência de notificação na API. O backend documenta a fila, mas o worker de envio de e-mails ainda precisa ser configurado; não considere o envio operacional até publicar e validar esse serviço. Não inclua comentário ou telefone em notificações.

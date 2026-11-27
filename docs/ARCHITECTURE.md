@@ -38,7 +38,7 @@ O frontend não abre conexão PostgreSQL e não contém credenciais Supabase ope
 
 ## Limites conhecidos
 
-- Os endpoints de publicação e criação de perguntas/setores estão implementados. Edição/arquivamento de setores e edição/arquivamento de pesquisas continuam fora da UI.
+- Os endpoints de publicação e criação de perguntas/setores estão implementados. Admin e Ouvidoria podem listar e excluir pesquisas na UI; `DELETE /surveys/{id}` arquiva a pesquisa, retira o acesso público e preserva as avaliações históricas. Edição/arquivamento de setores e edição de pesquisas continuam fora da UI.
 - A API persiste preferências de notificações e enfileira ocorrências, mas o worker que efetivamente envia e-mails ainda precisa ser operacionalizado.
 - A associação humana de respostas a profissionais/equipes não possui interface nesta versão.
 - `supabase/` e testes de banco antigos são artefatos históricos da versão monolítica; não fazem parte do runtime atual. Migrações históricas devem ser preservadas.
