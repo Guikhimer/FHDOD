@@ -11,9 +11,24 @@ import {
 import { Brand } from "@/components/Brand";
 import { Button } from "@/components/ui/button";
 import { demoSectors } from "@/lib/demo";
+import { publicApi } from "@/lib/api";
+import { sectorSchema } from "@/lib/api-schemas";
+import type { Sector } from "@/types";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
   const demo = !process.env.NEXT_PUBLIC_API_URL;
+  let sectors: Sector[] = demo ? demoSectors : [];
+  let loadFailed = false;
+  if (!demo) {
+    try {
+      sectors = await publicApi<Sector[]>("/sectors/public", {}, sectorSchema.array());
+      sectors = sectors.filter((sector) => sector.active);
+    } catch {
+      loadFailed = true;
+    }
+  }
   return (
     <div className="home-shell">
       <header className="public-header">
@@ -43,10 +58,10 @@ export default function Home() {
           Escolha o setor em que você foi atendido ou acesse o totem interativo.
         </p>
 
-        {demo ? (
+        {sectors.length > 0 ? (
           <>
             <div className="home-sector-grid">
-              {demoSectors.map((sector, i) => (
+              {sectors.map((sector, i) => (
                 <article key={sector.id} className="sector-card flex flex-col justify-between">
                   <div>
                     <span className="sector-card-icon">
@@ -65,14 +80,16 @@ export default function Home() {
                   <div className="flex flex-col gap-2 pt-4 border-t border-[#e0e3e5]">
                     <Link
                       className="font-bold text-sm text-[#da2f37] hover:underline flex items-center justify-between"
-                      href={`/p/${sector.slug}`}
+                      href={`/p/${encodeURIComponent(sector.slug)}`}
+                      aria-label={`Responder pesquisa de ${sector.name}`}
                     >
-                      <span>Avaliar no Celular (QR)</span>
+                      <span>Responder pesquisa</span>
                       <ArrowRight size={18} aria-hidden="true" />
                     </Link>
                     <Link
                       className="font-semibold text-xs text-[#0f3854] hover:text-[#da2f37] flex items-center justify-between"
-                      href={`/p/${sector.slug}?tablet=1`}
+                      href={`/p/${encodeURIComponent(sector.slug)}?tablet=1`}
+                      aria-label={`Abrir pesquisa de ${sector.name} no modo totem`}
                     >
                       <span className="flex items-center gap-1.5">
                         <Tablet size={14} /> Modo Totem (Kiosk Touch)
@@ -84,17 +101,21 @@ export default function Home() {
               ))}
             </div>
 
-            <p className="demo-note">
-              Ambiente de demonstração · setores e indicadores fictícios.
-              <br />
-              As avaliações de teste não alteram o histórico oficial.
-            </p>
+            {demo && (
+              <p className="demo-note">
+                Ambiente de demonstração · setores e indicadores fictícios.
+                <br />
+                As avaliações de teste não alteram o histórico oficial.
+              </p>
+            )}
           </>
         ) : (
-          <div className="public-instructions">
+          <div className="public-instructions" role={loadFailed ? "alert" : "status"}>
             <ClipboardCheck size={36} aria-hidden="true" className="text-[#da2f37]" />
             <p className="text-[#191c1e] text-base leading-relaxed">
-              Para avaliar, aponte a câmera do celular para o QR Code disponível na recepção ou utilize o totem interativo ao lado da triagem.
+              {loadFailed
+                ? "Não foi possível carregar as pesquisas. Atualize a página para tentar novamente ou peça orientação na recepção."
+                : "Nenhuma pesquisa está disponível no momento. Peça orientação na recepção."}
             </p>
           </div>
         )}

@@ -2,7 +2,9 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import ExcelJS from "exceljs";
 async function startSurvey(page: import("@playwright/test").Page) {
-  await page.goto("/p/pronto-atendimento");
+  await page.goto("/");
+  await page.getByRole("link", { name: "Responder pesquisa de Pronto Atendimento", exact: true }).click();
+  await expect(page).toHaveURL(/\/p\/pronto-atendimento$/, { timeout: 15000 });
   await page.getByRole("button", { name: "Aumentar texto" }).click();
   await expect.poll(() => page.locator(".survey-shell").evaluate((el) => getComputedStyle(el).getPropertyValue("--survey-font").trim())).toBe("20px");
   await page.getByLabel("Data do atendimento").fill("2026-11-01");
