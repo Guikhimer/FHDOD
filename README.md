@@ -21,7 +21,7 @@ Abra `http://localhost:3000`. Sem `NEXT_PUBLIC_API_URL`, as páginas usam dados 
 
 | Rota | Uso |
 | --- | --- |
-| `/` | Entrada e orientação ao paciente |
+| `/` | Lista pública de setores com pesquisa publicada e acesso para responder |
 | `/p/{slug}` | Pesquisa pública por setor |
 | `/p/{slug}?tablet=1` | Pesquisa com reinício automático |
 | `/login` | Acesso da equipe por e-mail e senha |
@@ -29,6 +29,8 @@ Abra `http://localhost:3000`. Sem `NEXT_PUBLIC_API_URL`, as páginas usam dados 
 | `/dashboard` | Indicadores e filtros por período/setor |
 | `/dashboard/manage` | Administração para Admin e Ouvidoria |
 | `/tv-wall` | Painel público somente com indicadores agregados |
+
+Na tela inicial, `GET /api/v1/sectors/public` fornece os setores ativos com pesquisa publicada, sem exigir login. Cada cartão permite responder à pesquisa ou abrir o modo totem. Se a API falhar ou não houver pesquisas disponíveis, a página exibe uma mensagem correspondente.
 
 ## Sessão e dados
 
