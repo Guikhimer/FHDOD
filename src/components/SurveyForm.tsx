@@ -360,7 +360,7 @@ export function SurveyForm({
               <button
                 type="button"
                 onClick={startSurvey}
-                className="w-full max-w-xl h-24 rounded-full bg-[#da2f37] hover:bg-[#ba1a23] text-white flex items-center justify-center gap-4 shadow-xl hover:shadow-2xl active:scale-[0.98] transition-all duration-200 cursor-pointer"
+                className="welcome-start-button w-full max-w-xl h-24 rounded-full bg-[#da2f37] hover:bg-[#ba1a23] text-white flex items-center justify-center gap-4 shadow-xl hover:shadow-2xl active:scale-[0.98] transition-all duration-200 cursor-pointer"
               >
                 <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
                   <span className="text-3xl">👆</span>
