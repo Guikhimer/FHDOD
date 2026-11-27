@@ -4,6 +4,10 @@ export const roleSchema = z.enum(["admin", "ombudsman", "sector_manager"]);
 export const tokenPairSchema = z.object({ accessToken: z.string().min(20), refreshToken: z.string().min(20), tokenType: z.literal("Bearer"), expiresIn: z.number().int().positive(), mustChangePassword: z.boolean() });
 export const profileSchema = z.object({ id: z.uuid(), full_name: z.string(), role: roleSchema, active: z.boolean(), mustChangePassword: z.boolean() });
 export const sectorSchema = z.object({ id: z.uuid(), name: z.string(), slug: z.string(), active: z.boolean() });
+export const managedSurveySchema = z.object({
+  id: z.uuid(), title: z.string(), status: z.enum(["draft", "published"]),
+  sector_id: z.uuid(), sector_name: z.string(), sector_slug: z.string(),
+});
 export const questionSchema = z.object({ id: z.uuid(), text: z.string(), kind: z.enum(["rating", "nps"]), sector_id: z.uuid().nullable(), position: z.number().int() });
 export const metricsSchema = z.object({
   total: z.number().int().nonnegative(), nps: z.number().nullable(), average: z.number().nullable(), satisfaction: z.number().nullable(),

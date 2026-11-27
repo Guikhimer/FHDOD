@@ -4,11 +4,13 @@ import { requireProfile } from "@/lib/auth";
 import { getSectors } from "@/lib/dashboard";
 import { apiRequest } from "@/lib/api";
 import { redirect } from "next/navigation";
-import { demoSurvey } from "@/lib/demo";
+import { demoSectors, demoSurvey } from "@/lib/demo";
 import { ActionForm } from "@/components/ActionForm";
+import { DeleteSurveyForm } from "@/components/DeleteSurveyForm";
 import {
   createSector,
   createSurvey,
+  deleteSurvey,
   createQuestion,
   archiveQuestion,
   inviteUser,
@@ -16,7 +18,13 @@ import {
   updateComplaint,
 } from "./actions";
 import type { Question } from "@/types";
-import { complaintSchema, managedUserSchema, notificationSettingsSchema, questionSchema } from "@/lib/api-schemas";
+import {
+  complaintSchema,
+  managedSurveySchema,
+  managedUserSchema,
+  notificationSettingsSchema,
+  questionSchema,
+} from "@/lib/api-schemas";
 import { z } from "zod";
 type Complaint = {
   id: string;
@@ -32,11 +40,26 @@ export default async function Manage() {
   const sectors = await getSectors();
   const demo = !process.env.NEXT_PUBLIC_API_URL;
   let questions: Question[] = demoSurvey("pronto-atendimento")!.questions;
+  let surveys: z.infer<typeof managedSurveySchema>[] = demoSectors.map((sector) => ({
+    id: sector.id,
+    title: demoSurvey(sector.slug)!.title,
+    status: "published",
+    sector_id: sector.id,
+    sector_name: sector.name,
+    sector_slug: sector.slug,
+  }));
+  let surveysUnavailable = false;
   let complaints: Complaint[] = [];
   let users: ManagedUser[] = [];
   let emails = "";
   let enabled = false;
   if (!demo) {
+    try {
+      surveys = await apiRequest("/surveys", {}, managedSurveySchema.array());
+    } catch {
+      surveys = [];
+      surveysUnavailable = true;
+    }
     questions = await apiRequest<Question[]>("/questions", {}, questionSchema.array());
     const settings = await apiRequest<{ notification_emails: string[]; notifications_enabled: boolean }>("/settings/notifications", {}, notificationSettingsSchema);
     emails = settings.notification_emails.join(", "); enabled = settings.notifications_enabled;
@@ -60,23 +83,45 @@ export default async function Manage() {
       <section className="table-card">
         <div className="section-heading">
           <div>
-            <h2>Links das pesquisas</h2>
-            <p>Use o modo tablet para voltar automaticamente à tela inicial.</p>
+            <h2>Pesquisas criadas</h2>
+            <p>Abra uma pesquisa ou exclua sua publicação. As avaliações recebidas permanecem no histórico.</p>
           </div>
         </div>
         <div className="sector-links">
-          {sectors.map((s) => (
-            <div key={s.id}>
-              <strong>{s.name}</strong>
-              <Link href={`/p/${s.slug}`}>
-                Abrir pesquisa <ExternalLink size={18} aria-hidden="true" />
-              </Link>
-              <Link href={`/p/${s.slug}?tablet=1`}>
-                Modo tablet <ExternalLink size={18} aria-hidden="true" />
-              </Link>
+          {surveys.map((survey) => (
+            <div key={survey.id}>
+              <strong>
+                {survey.sector_name}
+                <br />
+                <span className="field-help">{survey.title}</span>
+              </strong>
+              {survey.status === "published" ? (
+                <>
+                  <Link href={`/p/${encodeURIComponent(survey.sector_slug)}`}>
+                    Abrir pesquisa <ExternalLink size={18} aria-hidden="true" />
+                  </Link>
+                  <Link href={`/p/${encodeURIComponent(survey.sector_slug)}?tablet=1`}>
+                    Modo tablet <ExternalLink size={18} aria-hidden="true" />
+                  </Link>
+                </>
+              ) : <span className="small-tag">Rascunho</span>}
+              <DeleteSurveyForm
+                id={survey.id}
+                title={survey.title}
+                sectorName={survey.sector_name}
+                action={deleteSurvey}
+                disabled={demo}
+              />
             </div>
           ))}
         </div>
+        {surveysUnavailable ? (
+          <p className="form-error" role="alert">
+            Não foi possível carregar as pesquisas criadas. Confira se o backend foi atualizado e tente novamente.
+          </p>
+        ) : surveys.length === 0 && (
+          <p className="empty-state">Nenhuma pesquisa criada para exibir.</p>
+        )}
       </section>
       <div className="manage-grid">
           <section className="management-card">

@@ -7,7 +7,7 @@
 | Sessão | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `PATCH /auth/password`, `GET /auth/me` |
 | Pesquisa pública | `GET /surveys/public/{slug}`, `POST /surveys/public/{slug}/responses` com `Idempotency-Key` |
 | Indicadores | `GET /dashboard/metrics`, `GET /sectors`, `GET /tv/metrics` |
-| Administração | `POST /sectors`, `POST /surveys`, `GET/POST /questions`, `PATCH /questions/{id}`, `GET/PUT /settings/notifications`, `GET/POST /users` |
+| Administração | `POST /sectors`, `GET/POST /surveys`, `DELETE /surveys/{id}`, `GET/POST /questions`, `PATCH /questions/{id}`, `GET/PUT /settings/notifications`, `GET/POST /users` |
 | Ouvidoria | `GET /complaints`, `PATCH /complaints/{id}` |
 | Exportação | `GET /reports/responses` paginado; o Next compõe arquivo Excel |
 
@@ -29,7 +29,7 @@ As definições detalhadas estão no [contrato da API](../backend-FHDOD/docs/API
 
 1. O backend precisa ter as migrations aplicadas no banco do ambiente e endpoints implantados na mesma versão do frontend, incluindo migration `002_client_confirmed_requirements.sql` e `/tv/metrics`, `/auth/me`, `/users` e demais rotas de gestão.
 2. A API salva a preferência de notificações e enfileira registros, porém o worker de e-mail não está implementado/operacionalizado. A preferência não garante entrega até o worker existir e ser monitorado.
-3. Não há UI para associação humana de respostas a equipe/profissional, edição de setores ou arquivamento de pesquisas.
+3. Não há UI para associação humana de respostas a equipe/profissional ou edição de setores. A exclusão de pesquisas está disponível para Admin e Ouvidoria com confirmação; exige `GET /surveys` e `DELETE /surveys/{id}` no backend e preserva o histórico por arquivamento.
 4. Os testes E2E dependem de API e dados de teste configurados; não afirmam conexão com Aiven nem implantação em produção.
 
 ## Arquivos históricos
