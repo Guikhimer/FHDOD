@@ -17,7 +17,7 @@ As definições detalhadas estão no [contrato da API](../backend-FHDOD/docs/API
 
 - Admin tem acesso total e pode criar contas. Ouvidoria pode operar globalmente, exceto criar contas. Gestores consultam somente o dashboard dos setores autorizados, sem gestão, exportação, comentários ou contatos.
 - Contas novas são criadas pelo Admin com senha temporária e obrigadas a trocá-la no primeiro acesso. Não há convite por e-mail nesta versão; senha inicial deve ser compartilhada por canal seguro.
-- NPS 0–10 é obrigatório. Notas de 1–5 são opcionais. A submissão usa `Idempotency-Key` (UUID) e mapeia `attendedAt` para a data/hora digitada do atendimento.
+- NPS 0–10 é obrigatório. Notas de 1–5 são opcionais. A submissão usa `Idempotency-Key` (UUID) e envia em `attendedAt` a data/hora capturada do aparelho ao iniciar a avaliação, convertida para ISO UTC. Reenvios preservam esse instante; novas avaliações capturam outro.
 - O frontend só inclui contato com consentimento. O backend mantém a validação final e decide o registro de Ouvidoria.
 - Turnos não são coletados nem filtrados nesta fase. A coluna antiga `shift` permanece nula nas submissões novas.
 - TV Wall pública carrega apenas indicadores agregados; relatos, telefones e respostas individuais não são renderizados.

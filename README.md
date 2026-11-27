@@ -36,7 +36,7 @@ Na tela inicial, `GET /api/v1/sectors/public` fornece os setores ativos com pesq
 
 O Next.js atua como BFF para chamadas autenticadas: access e refresh tokens ficam em cookies `HttpOnly`, `Secure` em produção e `SameSite=Lax`; as chamadas bearer são feitas no servidor. Configure CORS da API com as origens necessárias ao ambiente. Não coloque URL de banco, segredo JWT ou credenciais privadas em variáveis `NEXT_PUBLIC_*`.
 
-A pesquisa pública usa `GET /api/v1/surveys/public/{slug}` e envia para o backend por um Route Handler do Next.js. A chave UUID de idempotência segue no cabeçalho `Idempotency-Key`. NPS de 0 a 10 é obrigatório; notas de 1 a 5 são opcionais. O horário informado pelo paciente descreve o atendimento e é separado do horário de envio. Contato só é enviado com consentimento. A API decide os registros de Ouvidoria e grava os dados.
+A pesquisa pública usa `GET /api/v1/surveys/public/{slug}` e envia para o backend por um Route Handler do Next.js. A chave UUID de idempotência segue no cabeçalho `Idempotency-Key`. NPS de 0 a 10 é obrigatório; notas de 1 a 5 são opcionais. A data e a hora são capturadas automaticamente do aparelho ao iniciar a avaliação e enviadas em `attendedAt` como ISO UTC, sem digitação. Esse instante é preservado nas tentativas de reenvio e renovado a cada nova avaliação; o horário de recebimento no servidor continua separado. Contato só é enviado com consentimento. A API decide os registros de Ouvidoria e grava os dados.
 
 O painel público `/tv-wall` recebe somente agregados e não mostra relatos, telefones ou linhas de respostas. A equipe de Ouvidoria e Admin consultam dados individuais da Ouvidoria; gestores têm somente o dashboard dos setores autorizados e não podem exportar dados brutos.
 

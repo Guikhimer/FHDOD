@@ -50,8 +50,6 @@ export function SurveyForm({
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [nps, setNps] = useState<number | null>(null);
-  const [attendedDate, setAttendedDate] = useState("");
-  const [attendedTime, setAttendedTime] = useState("");
   const [comment, setComment] = useState("");
   const [contact, setContact] = useState("");
   const [consent, setConsent] = useState(false);
@@ -63,6 +61,7 @@ export function SurveyForm({
   const [protocol, setProtocol] = useState("");
 
   const submissionId = useRef<string | null>(null);
+  const attendedAt = useRef<string | null>(null);
   const busy = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const instanceId = useId();
@@ -89,8 +88,6 @@ export function SurveyForm({
     setStep(0);
     setAnswers({});
     setNps(null);
-    setAttendedDate("");
-    setAttendedTime("");
     setComment("");
     setContact("");
     setConsent(false);
@@ -100,8 +97,14 @@ export function SurveyForm({
     setRemaining(survey.tablet_reset_seconds);
     setProtocol("");
     submissionId.current = null;
+    attendedAt.current = null;
     busy.current = false;
   }, [survey.tablet_reset_seconds]);
+
+  function startSurvey() {
+    attendedAt.current ??= new Date().toISOString();
+    setStarted(true);
+  }
 
   useEffect(() => {
     if (started || done) heading.current?.focus();
@@ -203,7 +206,7 @@ export function SurveyForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           submissionId: submissionId.current,
-          attendedAt: new Date(`${attendedDate}T${attendedTime}:00`).toISOString(),
+          attendedAt: attendedAt.current,
           nps,
           answers: Object.entries(answers).map(([question_id, value]) => ({ question_id, value, question_text: survey.questions.find((question) => question.id === question_id)?.text ?? "" })),
           comment: low ? comment : "",
@@ -221,8 +224,7 @@ export function SurveyForm({
 
       setDone(true);
       setAnswers({});
-      setAttendedDate("");
-      setAttendedTime("");
+      attendedAt.current = null;
       setComment("");
       setContact("");
       setConsent(false);
@@ -330,10 +332,6 @@ export function SurveyForm({
               <p className="lead max-w-2xl text-xl text-[#424750] mb-8 leading-relaxed">
                 Sua opinião transforma o nosso atendimento e acolhe quem mais precisa.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl mb-6 text-left">
-                <label>Data do atendimento<input type="date" value={attendedDate} onChange={(event) => setAttendedDate(event.target.value)} required /></label>
-                <label>Horário do atendimento<input type="time" value={attendedTime} onChange={(event) => setAttendedTime(event.target.value)} required /></label>
-              </div>
 
               {/* Cards de garantia e agilidade */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl mb-8 text-left">
@@ -361,8 +359,7 @@ export function SurveyForm({
               {/* BOTÃO GIGANTE TÁTIL DE ENTRADA (Tela 5) */}
               <button
                 type="button"
-                onClick={() => attendedDate && attendedTime && setStarted(true)}
-                disabled={!attendedDate || !attendedTime}
+                onClick={startSurvey}
                 className="w-full max-w-xl h-24 rounded-full bg-[#da2f37] hover:bg-[#ba1a23] text-white flex items-center justify-center gap-4 shadow-xl hover:shadow-2xl active:scale-[0.98] transition-all duration-200 cursor-pointer"
               >
                 <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
@@ -403,16 +400,11 @@ export function SurveyForm({
                   <LockKeyhole aria-hidden="true" className="text-[#da2f37]" /> Contato opcional e protegido
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-4 text-left">
-                <label>Data do atendimento<input type="date" value={attendedDate} onChange={(event) => setAttendedDate(event.target.value)} required /></label>
-                <label>Horário do atendimento<input type="time" value={attendedTime} onChange={(event) => setAttendedTime(event.target.value)} required /></label>
-              </div>
 
               <Button
                 size="large"
                 variant="warm"
-                onClick={() => attendedDate && attendedTime && setStarted(true)}
-                disabled={!attendedDate || !attendedTime}
+                onClick={startSurvey}
                 className="w-full shadow-lg"
               >
                 Iniciar Avaliação Rápida <ArrowRight aria-hidden="true" />

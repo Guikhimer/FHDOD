@@ -21,7 +21,7 @@ O frontend não abre conexão PostgreSQL e não contém credenciais Supabase ope
 
 ## Fluxos de dados
 
-- **Pesquisa pública:** Server Component carrega setor e questões ativas via `GET /surveys/public/{slug}`. O Route Handler valida a submissão, verifica origem e tamanho e repassa `Idempotency-Key` ao backend. NPS 0–10 é obrigatório; notas 1–5 são opcionais. `attendedAt` guarda a data/hora do atendimento, distinta de `created_at`. O servidor da API mantém `shift` nulo; plantões estão fora do escopo atual.
+- **Pesquisa pública:** Server Component carrega setor e questões ativas via `GET /surveys/public/{slug}`. O Route Handler valida a submissão, verifica origem e tamanho e repassa `Idempotency-Key` ao backend. NPS 0–10 é obrigatório; notas 1–5 são opcionais. `attendedAt` guarda a data/hora capturada do aparelho ao iniciar a avaliação, enviada em ISO UTC e preservada em reenvios, distinta de `created_at`. Não há campos de data/hora para digitação; cada nova avaliação captura outro instante. O servidor da API mantém `shift` nulo; plantões estão fora do escopo atual.
 - **Dashboard:** Server Components consultam métricas e setores. O backend calcula escopo de gestores, filtros e agregados.
 - **Ouvidoria e gestão:** Server Actions validam os dados com Zod e usam endpoints REST. Usuário novo é criado pelo Admin com senha temporária, hash Argon2id no backend e troca obrigatória no primeiro acesso. A senha temporária é definida pelo Admin e deve ser compartilhada por canal seguro.
 - **Excel:** Route Handler do Next pagina respostas do backend e gera planilhas de respostas e notas. Comentários/contatos entram somente para Admin e Ouvidoria. Gestores não têm acesso a esse endpoint.
