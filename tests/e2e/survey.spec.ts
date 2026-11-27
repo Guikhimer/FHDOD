@@ -7,9 +7,7 @@ async function startSurvey(page: import("@playwright/test").Page) {
   await expect(page).toHaveURL(/\/p\/pronto-atendimento$/, { timeout: 15000 });
   await page.getByRole("button", { name: "Aumentar texto" }).click();
   await expect.poll(() => page.locator(".survey-shell").evaluate((el) => getComputedStyle(el).getPropertyValue("--survey-font").trim())).toBe("20px");
-  await page.getByLabel("Data do atendimento").fill("2026-11-01");
-  await page.getByLabel("Horário do atendimento").fill("10:30");
-  await expect(page.getByLabel("Data do atendimento")).toHaveValue("2026-11-01");
+  await expect(page.locator('input[type="date"], input[type="time"]')).toHaveCount(0);
   await page.getByRole("button", { name: /TOQUE AQUI PARA COMEÇAR|Iniciar Avaliação Rápida/i }).click();
 }
 test("optional answers, required NPS zero, successful submission", async ({ page }) => {
@@ -24,12 +22,16 @@ test("optional answers, required NPS zero, successful submission", async ({ page
   });
 });
 test("low score opens optional complaint, tablet clears it after reset", async ({ page }) => {
+  const timestamps: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/surveys/pronto-atendimento") {
+      timestamps.push(request.postDataJSON().attendedAt);
+    }
+  });
   await page.goto("/p/pronto-atendimento?tablet=1");
   await page.getByRole("button", { name: "Aumentar texto" }).click();
   await expect.poll(() => page.locator(".survey-shell").evaluate((el) => getComputedStyle(el).getPropertyValue("--survey-font").trim())).toBe("20px");
-  await page.getByLabel("Data do atendimento").fill("2026-11-01");
-  await page.getByLabel("Horário do atendimento").fill("10:30");
-  await expect(page.getByLabel("Data do atendimento")).toHaveValue("2026-11-01");
+  await expect(page.locator('input[type="date"], input[type="time"]')).toHaveCount(0);
   await page.getByRole("button", { name: /TOQUE AQUI PARA COMEÇAR/ }).click();
   await page.getByRole("radio", { name: /Péssimo Nível 1 de 5/ }).check();
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Avançar" }).click();
@@ -47,10 +49,14 @@ test("low score opens optional complaint, tablet clears it after reset", async (
   await expect(page.getByRole("heading", { name: "Muito Obrigado pela sua Avaliação!" })).toBeVisible();
   await page.clock.fastForward(21000);
   await expect(page.getByRole("button", { name: /TOQUE AQUI PARA COMEÇAR/ })).toBeVisible();
-  await page.getByLabel("Data do atendimento").fill("2026-11-01");
-  await page.getByLabel("Horário do atendimento").fill("10:30");
   await page.getByRole("button", { name: /TOQUE AQUI PARA COMEÇAR/ }).click();
   await expect(page.getByRole("radio", { name: /Péssimo Nível 1 de 5/ })).not.toBeChecked();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Avançar" }).click();
+  await page.getByRole("radio", { name: "10", exact: true }).check();
+  await page.getByRole("button", { name: "Enviar avaliação" }).click();
+  await expect(page.getByRole("heading", { name: "Muito Obrigado pela sua Avaliação!" })).toBeVisible();
+  expect(timestamps).toHaveLength(2);
+  expect(Date.parse(timestamps[1]) - Date.parse(timestamps[0])).toBeGreaterThanOrEqual(21000);
 });
 test("mobile zoom, keyboard and automated WCAG checks", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -58,8 +64,6 @@ test("mobile zoom, keyboard and automated WCAG checks", async ({ page }) => {
   await page.getByRole("button", { name: "Aumentar texto" }).click();
   await page.getByRole("button", { name: "Aumentar texto" }).click();
   await expect.poll(() => page.locator(".survey-shell").evaluate((el) => getComputedStyle(el).getPropertyValue("--survey-font").trim())).toBe("22px");
-  await page.getByLabel("Data do atendimento").fill("2026-11-01");
-  await page.getByLabel("Horário do atendimento").fill("10:30");
   await page.getByRole("button", { name: /Iniciar Avaliação Rápida/i }).click();
   const radio = page.getByRole("radio", { name: /Péssimo Nível 1 de 5/ });
   await radio.focus();
@@ -83,11 +87,15 @@ test("mobile zoom, keyboard and automated WCAG checks", async ({ page }) => {
   await page.getByRole("heading").focus();
   await page.screenshot({ path: "test-results/survey-mobile.png", fullPage: true });
 });
-test("submission disables repeated clicks and preserves the retry identifier", async ({ page }) => {
+test("submission preserves the device timestamp and retry identifier", async ({ page }) => {
+  const deviceTime = new Date("2026-11-26T10:30:45.123-03:00");
+  await page.clock.setFixedTime(deviceTime);
   const ids: string[] = [];
+  const timestamps: string[] = [];
   let release: (() => void) | undefined;
   await page.route("**/api/surveys/pronto-atendimento", async (route) => {
     ids.push(route.request().postDataJSON().submissionId);
+    timestamps.push(route.request().postDataJSON().attendedAt);
     if (ids.length === 1) {
       await new Promise<void>((resolve) => {
         release = resolve;
@@ -96,6 +104,9 @@ test("submission disables repeated clicks and preserves the retry identifier", a
     } else await route.fulfill({ status: 200, json: { ok: true } });
   });
   await startSurvey(page);
+  await page.clock.setFixedTime(new Date(deviceTime.getTime() + 5 * 60_000));
+  await page.getByRole("button", { name: "Voltar", exact: true }).click();
+  await page.getByRole("button", { name: /Iniciar Avaliação Rápida/i }).click();
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Avançar" }).click();
   await page.getByRole("radio", { name: "10", exact: true }).check();
   await page.getByRole("button", { name: "Enviar avaliação" }).click();
@@ -104,10 +115,12 @@ test("submission disables repeated clicks and preserves the retry identifier", a
   release!();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Falha de conexão");
   await expect(page.getByRole("radio", { name: "10", exact: true })).toBeChecked();
+  await page.clock.setFixedTime(new Date(deviceTime.getTime() + 10 * 60_000));
   await page.getByRole("button", { name: "Enviar avaliação" }).click();
   await expect(page.getByRole("heading", { name: "Muito Obrigado pela sua Avaliação!" })).toBeVisible();
   expect(ids).toHaveLength(2);
   expect(ids[0]).toBe(ids[1]);
+  expect(timestamps).toEqual([deviceTime.toISOString(), deviceTime.toISOString()]);
 });
 test("dashboard, TV and Excel demonstration are reviewable", async ({ page }) => {
   await page.goto("/dashboard");
